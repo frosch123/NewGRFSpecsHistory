@@ -577,6 +577,178 @@ built using TTD's default layout.
 Note that it may be easier to draw different sprite sets using a variational
 action 2 based on station variable 40, rather than redefining the layout.
 
+For canals (feature 5):
+-------------------------------
+
+No properties exist for canals.
+
+
+For bridges (feature 6):
+-------------------------------
+
+	Properties for bridges
+	08	B	Year of availability, counted from 1920
+			(set to 1920 for first bridge if newstartyear<1930)
+	09	B	Minimum length, not counting ramps
+	0A	B	Maximum length, not counting ramps
+	0B	B	Cost factor
+	0C	W	Max. speed
+	0D	V	Sprite layout, see below
+	0E	B	Various flags, bitcoded
+			Bit 0	Do not draw the far pillars for higher bridges
+
+
+Property 0D sets the sprite layout for bridges.  Each part of a bridge has
+eight sprites for each of the four types (rail, road, monorail, maglev),
+making 32 sprites in total.  Each bridge has 7 parts, though not all of them
+have different graphics.
+
+The data for property 0D is variable sized, with the format being
+
+	B tableid	First table to define sprites for
+	B numtables	Number of tables to define sprites for
+	V spritedata	spritedata, numtables*32 DWORDs with sprite numbers
+
+The tableid is the number of the first table to change.  There are seven
+tables for each bridge, with the first six (0-5) being various middle parts
+and the last one (6) being the end pieces.
+
+In each middle part table, there are four entries each for the following:
+Rail X, Rail Y, Road X, Road Y, Monorail X, Monorail Y, Maglev X, Maglev Y
+
+The four entries are
+	Back&Floor, Front, Pillars, 0
+
+Front and Pillars can be 0, meaning no sprite to draw.  The fourth entry
+is always ignored.
+
+In the end part table, there are again four entries each, but now for
+Rail flat, Rail ramp, Road flat, Road ramp, Monorail flat, Monorail ramp
+and Maglev flat, Maglev ramp.
+
+The four entries in this case are
+	northern end X, northern end Y, southern end X, southern end Y
+
+The sprite numbers can be any of TTD's sprite numbers.  You can add the
+following to get colour translation:
+	31D8000h  concrete
+	3218000h  red steel
+	3208000h  yellow steel
+
+To summarize, there are 7 tables for each of the 11 bridges.  Each table
+contains 4*8 entries, making it 128 (80h) bytes large.  The first six tables,
+number 0 to 5, are middle pieces, the last table, number 6, is the end pieces.
+
+For town buildings (feature 7):
+-------------------------------
+
+For town buildings (or simply houses), the offset defines the first house ID
+for this action 0. House IDs, like station IDs, are unique within each grf file,
+and in total each game can only have 255 IDs for all active grf files.
+
+To start using a house ID, you must first define it by setting its property 08
+(see below). If you try to modify a house ID whose action 08 isn't set, your
+request is ignored, but not reported as an error, either. House IDs, unlike
+station IDs, need not be set in order, so you can use action 7 to skip action
+0-s of the houses you don't currently need (for example those houses that
+don't appear on the current climate anyway). You are advised to do so in order
+to define as few IDs as possible, leaving space for other GRFs. You don't
+need to skip all action 0-s for a house ID to disable it; skipping the action
+0 that sets property 08 is enough.
+
+	Properties for town buildings
+	number	size	property
+	08	B	Substitute building type. This building type will be
+			used instead of your new one if your definition isn't
+			available for any reason (the grf file is not found,
+			for example). Don't set a subtitute building type
+			that is larger than your new one (for example, don't
+			set 14 (stadium) for an 1x1 building) because this
+			may corrupt savegames. Setting this property
+			automatically copies every property of the substitute
+			building to your new building, so you don't have to
+			change properties that are the same as in the substitute.
+			House flags 40 and 80 are exceptions; these flags are
+			never set automatically. Only the first property 08
+			setting copies properties; if you later change it,
+			properties will stay.
+	09	B	Building flags:
+			Bit 0	This is an 1x1 building
+			Bit 1	This building can be built only on flat land
+				(if clear, foundations are automatically
+				displayed on sloped land)
+			Bit 2	This is a 2x1 building
+			Bit 3	This is an 1x2 building
+			Bit 4	This is a 2x2 building
+			Bit 5	Animation flag, set in tiles 04 and 05
+				(large office block). Not supported for
+				new houses and must always be clear
+			Bit 6	This building is a church
+			Bit 7	This building is a stadium
+
+			If your building isn't 1x1, set flags accordingly
+			for the top tile, then define the next 1 or 3
+			tiles (by setting their property 8) with flags set
+			to zero. There should be no property 8 setting between
+			the first tile and the additional tiles. For 2x2
+			buildings, the first additional tile is the east
+			one, the second is the west part and the third
+			is the south part. You probably want to set the
+			substitute for additional tiles to a TTD additional
+			tile whose flags are already zero.
+			2x2 buildings are always built on flat land no
+			matter how bit 1 is set.
+			Only one church and one stadium can exist in a town;
+			the town won't build buildings with the according
+			flag set until the old church/stadium is removed.
+			(This can be done by either the town or a player)
+	0A	W	Availablity years. The low byte is the minimum year,
+			the high is the maximum. The building can only be built
+			between these two years (inclusive). 1920 are added to
+			both bytes before using the values.
+	0B	B	Population. The population of the town will be increased
+			by this amount if this building is built. Additional
+			house parts should have a population of zero. The higher
+			this value is, the more passengers this building generates.
+	0C	B	Mail generation multiplier. The higher this value is, the
+			more mail the building generates.
+	0D	B	Passenger acceptance (in 1/8 units). Must be between 0 and 8.
+	0E	B	Mail acceptance (in 1/8 units). Must be between 0 and 8.
+	0F	B	Goods (if positive) or food/fizzy drinks (if negative)
+			acceptance (in 1/8 units). Must be between -8 and 8.
+			Note that the officefood switch may modify acceptance in
+			the sub-arctic and subtropical climates.
+	10	W	Removal rating decrease. The LA rating of the player who destroys
+			this building goes down by this amount.
+	11	B	Removal cost multiplier.
+	12	W	Building name ID. The ID of the text that should be displayed in
+			the land query window. The name can also be set by action 4
+			(see there). Should be set to the same value for every tile for
+			multi-tile buildings.
+	13	W	Building availablity mask
+			Bits 0..4	which town zones the building can be built in
+			Bit 11		can appear in sub-arctic climate above the snow line
+			Bit 12		can appear in temperate climate
+			Bit 13		can appear in sub-arctic climate below the snow line
+			Bit 14		can appear in subtropical climate
+			Bit 15		can appear in toyland climate
+
+			This property should be set to zero for additional building tiles.
+	14	B	House callback flags
+			Bit 1		use callback 17 to decide wether the house can be built
+					on a given tile
+	15	B	House override byte. Setting this property makes this building appear
+			instead of the given old TTD building type. Setting the property is
+			ignored if the given old house type is already overriden. You can
+			set this property more than once to override more old building types.
+			No new house of the overridden types will be built in towns.
+	16	B	Periodic refresh multiplier, used for random triggers. See at
+			action 2.
+
+When a town decides to expand, each active house type (both old and new ones) has uniform
+probablity to appear, so the more new houses you define, the less old TTD buildings will
+appear.
+
 
 Action 1:	Define new vehicle sprite blocks.
 ~~~~~~~~~
@@ -597,6 +769,9 @@ Data is <01> <feature> <num-sets> <num-ent>
 				different sprites that make up a station
 			For canals, it depends on the canal feature, 
 				see action 3
+			For houses, this should be 1. If it's more, only the
+				first sprite of each set will be used
+				see action 2 and 3
 
 The following num-sets times num-ent sprites will be real sprites,
 not pseudo-sprites.  The first num-ent sprites will be sprite set 0, the
@@ -711,6 +886,73 @@ You will note that this is the same format as for vehicles, but specifying
 only a single action 1 set ID to use for the particular canal feature.
 
 
+For town buildings (feature 7):
+-------------------------------
+
+Data is <02> <07> <set-id> 00 <groundsprite> <buildingsprite> <xoffset>
+	<yoffset> <xextent> <yextent> <zextent>
+
+	B 07			feature 7=town buildings
+	B set-id		ID for this definition
+	B 00			Literal 0 (to distinguish this definition from random/variational lists)
+	D groundsprite		Ground sprite for the building (see format below)
+	D buildingsprite	The sprite of the building (see format below)
+				Can be zero to indicate that no building sprite should
+				be displayed (useful for early building stages)
+
+	The remaining bytes define the bounding box of the building:
+
+	B xofs		x-offset from northern tile corner (must be below 10h)
+	B yofs		y-offset from northern tile corner (must be below 10h)
+	B xextent	size of sprite in x direction
+	B yextent	size of sprite in y direction
+	B zextent	size of sprite in z direction
+	(z-offset is always zero for buildings)
+
+The ground and building sprite fields have the following format:
+	Bits 0-13:	Sprite number, exact meaning specified by bit 31
+	Bits 14-15:	0: draw sprite normally
+			1: draw sprite in transparent mode
+			2: recolor sprite
+	Bits 16-31:	Color translation special sprite number (used only if
+			bits 14-15 are set to 2). Must be a regular TTD sprite.
+			Useful values (decimal):
+			775:	blue->dark blue
+			776:	blue->pale green
+			777:	blue->pink
+			778:	blue->yellow
+			779:	blue->red
+			780:	blue->light blue
+			781:	blue->green
+			782:	blue->dark green
+			(783:	blue->blue, not too useful)
+			784:	blue->cream
+			785:	blue->mauve
+			786:	blue->purple
+			787:	blue->orange
+			788:	blue->brown
+			789:	blue->grey
+			790:	blue->white
+			802:	makes the whole sprite darker
+	Bit 32:		If set, the bottom 13 bits is a number of a sprite set
+			in the most recent action 1, and the first sprite of the
+			set will be used. If clear, the bottom 13 bits is a
+			regular TTD sprite number.
+
+The ground sprite should be exactly the same size and shape as TTD's flat tile.
+In general, it shouldn't contain anything that has a Z dimension because any
+non-ground sprite will cover it.
+
+Useful values for ground sprites (decimal):
+	3924:		bare land
+	3981:		grass
+	4550:		snow or desert (depending on climate)
+	1420:		concrete
+
+Please note that all the ground sprite becomes visible in "transparent
+buildings" mode, so you should draw parts that seem to be hidden as well.
+
+
 Randomized and variational cargo ID lists:
 ------------------------------------------
 
@@ -789,6 +1031,26 @@ Random triggers for stations:
 Random triggers for cities:
 	none at the moment
 
+Random triggers for town buildings:
+	01	the building tile is processed in the periodic tile
+		processing loop
+	02	the top tile of the building is processed in the
+		periodic tile processing loop
+
+	The periodic tile processing loop constantly processes the tiles
+	of the map, processing any given tile in every 256 ticks
+	(approx. 3 TTD days). Since no "real" event happens to town
+	buildings, you have only this opportunity to re-randomize the
+	look of your building. If every 3 days is too fast for you, you
+	can multiply the time-out by setting property 16 for the given tile.
+	The time-out is 256 ticks*(prop. 16+1), so 0 means every 3 days,
+	1 means every 6 days, 2 means every 9 days and so on. If trigger
+	02 is activated, all parts of the building that has this trigger
+	set will get the same random bits, allowing you to randomize a
+	multi-tile building as one unit. On the other hand, if the tiles
+	of a multi-tile building have trigger 1 set, all tiles will be randomized
+	individually. Note that all tiles of a multi-tile building
+	get the same value when building the building.
 
 When displaying vehicles in the purchase list, the game will always
 show the first cargo-ID listed, not a random one.
@@ -805,11 +1067,7 @@ above bit 7, because those bits will always be zero.
 
 The cargo ID is always randomized when a vehicle is first bought,
 but from then on it only changes when any or all of the trigger
-conditions are met.  These conditions are checked according to
-the current graphics, so if there are several random lists in a
-chain, only the triggers of the chain that defines the current
-graphics matter.  To be on the safe side, always have identical
-triggers in all final random lists of a chain.
+conditions are met.
 
 
 For types 81/82: list of variational but deterministic cargo IDs
@@ -830,7 +1088,7 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			   vehicle/station itself
 			82 means the following variable refers to the engine
 			   of the consist of this vehicle (for vehicles)
-			   or the corresponding city (for stations)
+			   or the corresponding city (for stations and houses)
 			   (undefined for canals)
 	B variable	what variable determines the cargo ID to choose
 			00 current date (counted as days from 1920)
@@ -909,7 +1167,17 @@ Callback IDs stored in variable 0C:
 				selling articulated engines is only that
 				for the first piece as displayed in the purchase
 				screen.
-
+	17	town buildings	Build callback. This callback is used to determine
+				if the given building type can be built on a
+				position. It should return a nonzero value to
+				allow building and zero to cancel it.
+				Since the building is not created yet, you can't
+				use variables 40 and 41 (they return zero).
+				You can use variable 42, 43 and all
+				town variables, though. Property 0A and 13
+				are checked even if the callback returns
+				a nonzero value, they can cancel building
+				as well.
 
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
@@ -1012,6 +1280,42 @@ Canal properties:
 		01	Groundtype, 0 normal, 1 desert, 2 rainforest, 
 			4 on or above snowline
 
+Town building properties:
+	40	bits 0..1:	construction state: 0..2: various states of
+				construction, 3: construction finished
+		bits 2..3:	A pseudo-random value. It isn't actually
+				random, but is derived from the position
+				of the building. Old buildings use this
+				value to randomize their colors. TTDPatch
+				has a better way to randomize things, but
+				you can still use that value to mimic
+				unpatched TTD behaviour. Note that
+				adjacent tiles aren't guaranteed to have
+				the same pseudo-random bits
+
+	41	Age of the building in years (or, strictly speaking,
+		the difference between the current year and the year
+		the building was built). Returns 255 for buildings
+		older than 255 years.
+
+	42	Town zone where the building is situated. The value is
+		between 0 and 4, where 0 is the outermost zone of the
+		town. Smaller towns have fewer zones. Roads are plain
+		in zone 0 and 1, paved in zone 2, have trees in zone
+		3 and streetlights in zone 4
+
+	43	Ground type, the same as for canals
+
+	80+x	None defined, and none ever will because town buildings
+		don't have an internal structure. Trying to access these
+		variables crashes TTD.
+
+Please note that, unlike random graphics, changes of deterministic
+building graphics don't automatically redraw the building (except when
+the construction state changes, which redraws the building), resulting
+in temporary graphics glitches when a visible building changes its
+graphics. These glitches can be fixed by scrolling the building out of
+view, then back again.
 
 When displaying a vehicle in the purchase list, the game will show
 those variations based on external variables (dates etc.) correctly,
@@ -1055,7 +1359,12 @@ Data is <03> <feature> <n-id> <ids>... <num-cid> [<cargo-type> <cid>]... <def-ci
 
 For vehicles, the IDs are the vehicle IDs, whereas for stations they are
 of course the station IDs defined by action 0.  For canals, they specify
-the canal feature IDs (see below).
+the canal feature IDs (see below). For town buildings, the IDs are the
+house IDs, and specifying a house ID that haven't been defined before
+(by setting its property 08) doesn't do anything, but doesn't cause an
+error, either. Note that you don't necessarily have to assign a cargo
+ID to a house ID, the old TTD sprite of the substitute type will be
+used if you don't do so.
 
 If n-vid has bit 7 set, this action 3 must immediately follow an action 3.
 The engines defined by the first action 3 will then have an override for
@@ -1086,9 +1395,8 @@ IDs	numsprites	Description
 02	0C (12)		Dikes
 03	01 (1)		Icons
 
-Note that canals do not have any cargo, so you must use num-cid=00 and only
-specify the default action 2 ID.
-
+Note that canals and town buildings do not have any cargo, so you must use
+num-cid=00 and only specify the default action 2 ID.
 
 Action 4:	Define new vehicle names or other texts.
 ~~~~~~~~~
@@ -1180,7 +1488,14 @@ Special TTDPatch text IDs:
 		Changes the text "number of platforms" into the given text
 		when the station with this ID from the current set is
 		selected (i.e. xx=station-id from action 3 and 0)
-
+	C9xx	Name of the house type of this ID. If both property 12 and
+		this is set, the latest definition is used always. You should
+		prefer setting property 12 instead of this, so executables
+		translated with TTD Translator will show the name in the
+		current language. However, if you can't find any suitable
+		old TTD texts, this can be used to specify your custom name.
+		Don't forget to set the same text for all parts of a multi-tile
+		building.
 
 Action 5:	Define new non-vehicle sprite blocks.
 ~~~~~~~~~
