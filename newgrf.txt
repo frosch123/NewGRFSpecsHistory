@@ -127,21 +127,27 @@ few sprites will have to be skipped, which may confuse TTDPatch.
 -------------------------
 
 
-Action 0:	Define new vehicle properties.
+Action 0:	Define feature properties.
 ~~~~~~~~~
 
 May appear anywhere in the .grf file.
 
-Data is <00> <veh-type> <num-props> <num-info> <offset>
-then repeated numprops times: <property> <new-info>
+In general, the format is
+	<00> <feature> <num-props> <num-info> <offset> (<property <new-info>)...
 
-	B veh-type	0, 1, 2 or 3 for trains, road vehicles, ships or planes
-	B num-props	how many properties to change
-	B num-info	how many vehicles to change
+	B feature	0, 1, 2 or 3 for trains, road vehicles, ships or planes
+			4 for defining new train station sets
+	B num-props	how many properties to change per vehicle/station
+	B num-info	how many vehicles/stations to change
 	B offset	offset into each property (i.e. how many vehicles
 			to skip before the first one to change)
-	B property	what property to change, depends on the veh. type
-	V new-info	new bytes of info (variable size)
+	B property	what property to change, depends on the feature
+	V new-info	new bytes of info (variable size; depends on properties)
+
+
+
+For vehicles (features 0, 1, 2 or 3):
+-------------------------------------
 
 	Properties common to all vehicle types
 	number	size	property
@@ -195,15 +201,24 @@ amount between 31 months and 17 years is added to this as well.
 	17	B	Cost factor
 	18	B	Engine rank for the AI
 			(AI selects the highest-rank engine of those it can buy)
-	19	B	Steam/smoke/sparks type and sound effect for new graphics;
+	19	B	Engine traction type (steam/diesel/electric/monorail/maglev)
+			Also sets sound effect, and visual effect if prop. 22 not set
 			00..07=steam, 08..27=diesel, 28..31=electric,
 			32..37=monorail, 38..41=maglev; default if unset is steam
 	1A	B	Not a property, but an action: sort the current train
 			vehicle before train vehicle with the specified number
 			Use this when converting waggons to engines or vice versa
+	1B (1)	W	Power added by each wagon connected to this engine
+			(only applied for wagons with graphics override for this engine)
+	1D (1)	D	Bit mask of cargo types available for refitting
 	21	B	Make vehicle shorter by this amount (e.g. for tenders)
 			00=not shorter, 01=shorter by 12.5%, up to 07=shorter by 87.5%
 			Does not work for the first vehicle in a consist (i.e. the engine)
+	22 (1)	B	Set visual effect type (steam/smoke/sparks) as well as position
+			of effect relative to tip of engine from -4 (in front) to +11 (behind)
+			(positioning currently only works for steam)
+			00..0F=use effect from prop 19 (default), 10..1F=steam,
+			20..2F=diesel, 30=3F=electric, 40=disable effect
 
 
 	Properties for road vehicles
@@ -247,6 +262,15 @@ amount between 31 months and 17 years is added to this as well.
 	11	B	Mail capacity
 	12	B	Sound effect (not for helicopter); 6=prop 1, 7=jet 1,
 			3b=supersonic, 3d=jet 2, 45=prop 2, 46=jet 3
+	13 (1)	D	Bit mask of cargo types available for refitting
+
+
+Footnotes:
+	(1) This property was introduced in 2.0.1 alpha 6. To keep your grf
+	    file compatible with 2.0 rev 1, set the grf version in action 8
+	    to 5, and use this action 7 to skip action 0 which uses these
+	    new properties:
+		* 9  07 8B 04 05 3C 00 0A 02 <num-sprites>
 
 
 Note:
@@ -256,6 +280,8 @@ Note:
 	  only, which is then multiplied with a base value that is the
 	  same for all vehicles of that type (except trains, where you
 	  have a choice of three base values)
+	- The refitting bit masks don't work yet for trains and planes
+	  but they can be set and will be saved for later
 	- Don't use property numbers that aren't defined here
 
 You can define several new properties for many vehicles using a single
@@ -288,6 +314,64 @@ many action 0 entries as possible, to save some memory that would otherwise
 be wasted.
 
 
+For train stations (feature 4):
+-------------------------------
+
+For stations, the offset defines the first station ID for this action 0.
+Station IDs are unique within each grf file, however, in total each game can
+(currently) only have 255 station IDs for all active grf files.
+
+The only property you *must* set for each station ID is 08, anything else
+can be left at the default.
+
+The other properties (i.e. everything except 08) are currently not working
+and may in fact change for the next version.  Don't use them yet (you don't
+know the property number anyway...), but give feedback on whether they're
+useful or not :)
+
+	Properties for stations
+	08	D	Class ID, see below
+	??	B	Maximum platform length supported (1)
+	??	B	Maximum number of platforms supported (1)
+	??	W	Bit mask of disabled platform lengths (bits 1..15)
+	??	W	Bit mask of disabled numbers of platforms (bits 1..15)
+	??	B	Bit mask of track systems available (bits 0..2)
+	??	B	Type of station: 00=regular, 01=waypoint (won't accept cargo), ...
+	??	B	Layout type, 00=TTD default, FF=custom layout
+	??	V	Define custom layout
+
+TTDPatch groups sets of new station graphics into various classes.  The classes
+can be selected by the top row of buttons in the construction window, and the
+individual stations within the class from the bottom two buttons.  In addition,
+each station can alter its appearance using variational and/or random action 2
+entries.
+
+Eventually, it'll be possible to define new classes, currently the proposed
+classes are the following:
+
+ A  B  C  D  E	F  G  H  I  J  K  L  M  N  O  P  Q  R  S  T  U  V  W  X  Y  Z
+41 42 43 44 45 46 47 48 49 4A 4B 4C 4D 4E 4F 50 51 52 53 54 55 56 57 58 59 5A
+
+	Name	Class ID	Intended use for station
+	DFLT	44 46 4C 54	Default, no special station type
+
+Later, the following will probably be available:
+	CITY	43 49 54 59	City stations
+	PRIM	50 52 49 4D	Primary industries (producing raw material)
+	SECO	53 45 43 4F	Secondary industries (processing industries)
+	ACCE	41 43 43 45	Accepting industries (no production, e.g. power plant)
+	MULT	4D 55 4C 54	Multi-modal stations (e.g. large harbours)
+	WAYP	57 41 59 50	Non-cargo stations, waypoints, signal boxes etc.
+
+Later, the game might even display the most appropriate class depending on what
+station is being built.
+
+
+Footnotes:
+	(1) By default, any number and length are available; as many as are
+	    currently supported for regular TTD stations.  At the moment, this
+	    means up to 15x15, though only 14x15 or 15x14 can actually be built.
+
 Action 1:	Define new vehicle sprite blocks.
 ~~~~~~~~~
 
@@ -296,15 +380,15 @@ May appear anywhere in the .grf file.
 Data is <01> <feature> <num-sets> <num-ent>
 
 	B feature	feature to define sprites for
-			0, 1, 2, 3: veh-type, 4: stations
+			0, 1, 2, 3: veh-type, 4: train stations
 	B num-sets	number of sprite sets
 	B num-ent	how many entries per sprite set
 			For vehicles, this is the number of different
 				vehicle directions in each sprite set
 				Set num-dirs=8, unless your sprites are symmetric.
 				In that case, use num-dirs=4.
-			For stations, must be 1 (both NE/SW and NW/SE same)
-				or 2 for two distinct orientations
+			For stations, must be 12 (hex) for the eighteen
+				different sprites that make up a station
 
 The following num-sets times num-ent sprites will be real sprites,
 not pseudo-sprites.  The first num-ent sprites will be sprite set 0, the
@@ -341,7 +425,7 @@ For vehicles (features 0, 1, 2 or 3):
 
 Data is <02> <veh-type> <cargo-id> <num-loadtypes> <num-loadingtypes> <loadtypes...>
 
-	B feature	see action 1
+	B veh-type	see action 1
 	B cargo-id	ID of this particular definition, must be unique
 			for each sprite set
 	B num-loadtypes	how many different states of load this set
@@ -369,20 +453,32 @@ If there are four load types, they are shown above/below 25%, 50% and 75%
 etc...
 
 
-For stations (feature 4):
--------------------------
+For train stations (feature 4):
+-------------------------------
 
-Data is <02> <04> <station-id> <04> <00> <set0> <set1> <set2> <set3>
+Data is <02> <04> <set-id> <numtracktypes> <00> <sets...>
 
-	B 04		feature 4=stations
-	B station-id	ID of this station set, for referral by action 3 later
-	B 04		4 different orientations possible
+	B 04		feature 4=train stations
+	B set-id	ID of this station set, for referral by action 3 later
+	B numtracktypes	different track types available
 	B 00		verbatim 00
-	W set0..set3	Number of sprite set in most recent action 1, for
-			plain platform, platform with house, roof 1, roof 2
+	W sets...	Number of sprite set in most recent action 1, for
+			each of the track types
 
-A set must always define all four possible types, even if some may not end
-up being used, because the layout doesn't allow roofed stations for example.
+numtracktypes specifies how the various track systems look:
+
+ numtracktypes	meaning
+	01	all track types look the same
+	02	two different looks for regular/electrified, monorail/maglev
+	03	three different looks: regular/electrified, monorail, maglev
+	04	four different looks: regular, electrified, monorail, maglev
+
+Using variational action 2 entries is valid for stations.  In addition,
+for set-ids used later as a construction-set-id, the variational action 2
+can specifiy a cargo ID of FF FF (-1) to indicate that this particular set
+is not available in the current circumstances (e.g. because of the wrong year,
+snow/desert type etc.).  It will then not be an option that can be chosen with
+the selection buttons.
 
 
 Randomized and variational cargo ID lists:
@@ -575,6 +671,16 @@ Action 3:	Associate cargo IDs with vehicles
 May appear only *after* all corresponding cargo IDs have been
 defined by an action 2 entry in this .grf file.
 
+In general, the format of action 3 is:
+	<03> <feature> <specific-data>
+
+	B feature	see action 1
+	V specific-data	feature specific data, see below
+
+
+For vehicles (features 0, 1, 2 or 3):
+-------------------------------------
+
 Data is <03> <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-type> <cid>]... <def-cid>
 
 	B veh-type	see action 0
@@ -608,6 +714,25 @@ Note that you need to set the wagon's sprite number to FD using action 0,
 or it will only show the default sprite.  You do not need to specify any
 other cargo IDs for these wagons though, they will happily use the default
 sprite if no other definitions exist.
+
+
+For train stations (feature 4):
+-------------------------------
+
+Data is <03> <04> <station-id> <in-game-set-id> <construction-set-id>
+
+	B station-id	Station ID as defined by an earlier action 0
+	W in-game-set-id
+			Set ID from an earlier action 2, to be displayed
+			after the station is actually built
+	W construction-set-id
+			Set ID from an earlier action 2 that will be used
+			to display the station orientations in the station
+			construction window
+
+If the construction-set-id is a variational action 2, and specifies a cargo
+id of FF FF (-1), this station will not be available in the construction
+window.
 
 
 Action 4:	Define new vehicle names or other texts.
@@ -660,10 +785,6 @@ has been turned on (i.e., newtrain, newrvs, newships or newplanes).  Use the
 special veh-type of "48" (hex) to do this action if *any* of these switches
 is on.  This special veh-type is only valid for this particular action.
 
-Note that this kind of action 4 cannot be skipped by either action 7 or
-action 9.  If you try anyway, it will probably simply not be skipped, but
-other weird consequences may occur.  So don't do that.
-
 The text-id numbers are slightly complicated, unfortunately.  There exist
 several classes of strings, each which has a number of string entries.  Only
 some classes can be changed currently.  If you have the class, the text ID is
@@ -685,7 +806,7 @@ calculated as string_class + string_entry_num.  These classes exist in TTD:
 	6000	Debugger(??)	0:Debugger
 	6800	Difficulty	0:Difficulty level
 	7000	Player Info	4:New face
-	7800[*] User-defined	e.g. train names, signs, etc.
+	7800[*] User-defined	e.g. custom train names, signs, etc.
 	8000	Vehicle names	0:Kirby Paul Tank
 	8800	Trains		0:Train depot
 	9000	Road vehicles	0:Road vehicle in the way
@@ -695,12 +816,8 @@ calculated as string_class + string_entry_num.  These classes exist in TTD:
 
 	[*] Strings in this class cannot be changed.  Do not try to do so.
 
-To find the class and entry number for the string you're looking for, the
-easiest way is probably to load TTD Translator, find the first string in the
-class, and then count down to find the entry number.  This may not be
-perfectly accurate in some cases.  Alternatively, download Marcin's IDA Pro
-database, and find the text there.  It will have a label like a_Txxxx, where
-the xxxx is the text ID.
+For a full list of all text IDs, read A. Skrobov's textids.zip in the TTDPatch
+source code page.
 
 
 Action 5:	Define new non-vehicle sprite blocks.
@@ -873,7 +990,7 @@ Action to skip	with 7	with 9
 1 (sprite blk)	yes	yes
 2 (cargo ID)	no[*]	no	[*] skip the corresponding action 3 instead
 3 (veh ID map)	yes	no
-4 (veh names)	yes[*]	no	[*] except for general texts
+4 (veh names)	yes	no
 5 (sprite blk)	yes	yes
 6 (apply param)	no	yes
 7 (skip sprite)	yes	yes
