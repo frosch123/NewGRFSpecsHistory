@@ -134,7 +134,7 @@ few sprites will have to be skipped, which may confuse TTDPatch.
 Action 0:	Define feature properties.
 ~~~~~~~~~
 
-May appear anywhere in the .grf file.
+May appear only after an action 8 in the .grf file.
 
 In general, the format is
 	<00> <feature> <num-props> <num-info> <id> (<property <new-info>)...
@@ -236,6 +236,16 @@ amount between 31 months and 17 years is added to this as well.
 	1F (3)	B	Coefficient of tractive effort, that is the ratio between
 			maximum tractive effort and weight; FF:TE=W, 80:TE=W/2, etc.
 			default is 4C, for TE=0.3*W (Wadh=W and mu=0.30)
+	20 (4)	B	Set realistic acceleration air drag coefficient c2
+			If unset, TTD will use the following values depending
+			on the top speed:
+			speed:	<32  32  48  64   96 128  192  256  384  512...
+			prop.20:  1   2   3   4    5   6    7    8    9   10
+			c2:     3/4 1/2 3/8 1/4 3/16 1/8 3/32 1/16 3/64 1/32
+			air drag in Newtons will then be c2*v*v with v in m/s,
+			although it is probably futile to attempt to make c2 a
+			realistic number due to the lack of TTd's consistent
+			scaling
 	21	B	Make vehicle shorter by this amount (e.g. for tenders)
 			00=not shorter, 01=shorter by 12.5%, up to 07=shorter by 87.5%
 			Does not work for the first vehicle in a consist (i.e. the engine)
@@ -277,6 +287,10 @@ amount between 31 months and 17 years is added to this as well.
 				or when buying or moving vehicles in the depot
 	18	B	Max. tractive effort, see prop 1F for trains
 			Default 4C = 30%
+	19	B	Set realistic acceleration air drag coefficient c2,
+			see train prop 20 (but with default values being larger
+			by 2 to account for the smaller cross section of road
+			vehicles)
 
 
 	Properties for ships
@@ -324,6 +338,8 @@ Footnotes:
 		* 9  07 8B 04 04 6E 00 0A 02 <num-sprites>
 	(3) This property was introduced in 2.0.1 alpha 19, use this action 7:
 		* 9  07 8B 04 04 BE 00 0A 02 <num-sprites>
+	(4) This property was introduced in 2.0.1 alpha 27, use this action 7:
+		* 9  07 8B 04 04 0E 01 0A 02 <num-sprites>
 
 
 Note:
@@ -393,7 +409,8 @@ Station IDs are unique within each grf file, however, in total each game can
 The only property you *must* set for each station ID is 08, anything else
 can be left at the default.  Property 08 *must* be the first property set for
 each station ID, because it's what defines the station ID internally.  Before
-setting property 08, the station ID is strictly undefined and invalid.
+setting property 08, the station ID is strictly undefined and invalid.  Also,
+all station IDs must have their class set in order, starting from ID 00.
 
 	Properties for stations
 	08	D	Class ID, see below
@@ -414,6 +431,7 @@ setting property 08, the station ID is strictly undefined and invalid.
 	0F	B	Copy custom layout from stationid given by argument
 	10	W	Where to switch from "little" to "lots" of cargo
 			(see action 2)
+	11	B	Bit mask of tile types (0..7) for which to draw pylons
 
 Class ID:
 
@@ -562,7 +580,7 @@ May appear anywhere in the .grf file.
 Data is <01> <feature> <num-sets> <num-ent>
 
 	B feature	feature to define sprites for
-			0, 1, 2, 3: veh-type, 4: train stations
+			0, 1, 2, 3: veh-type, 4: train stations, 5: canals
 	B num-sets	number of sprite sets
 	B num-ent	how many entries per sprite set
 			For vehicles, this is the number of different
@@ -571,6 +589,8 @@ Data is <01> <feature> <num-sets> <num-ent>
 				In that case, use num-dirs=4.
 			For stations, must be 12 (hex) for the eighteen
 				different sprites that make up a station
+			For canals, it depends on the canal feature, 
+				see action 3
 
 The following num-sets times num-ent sprites will be real sprites,
 not pseudo-sprites.  The first num-ent sprites will be sprite set 0, the
@@ -670,6 +690,21 @@ range 200 to 4095 is divided by numlotssets.  If property 10 is zero, the
 must never be zero, however.
 
 
+For canals (feature 5):
+-------------------------------
+
+Data is <02> <05> <set-id> 01 00 <set>
+
+	B 05		feature 5=canals
+	B set-id	ID of this definition
+	B 01		literal 01
+	B 00		literal 00
+	W set		Number of sprite set in most recent action 1
+
+You will note that this is the same format as for vehicles, but specifying
+only a single action 1 set ID to use for the particular canal feature.
+
+
 Randomized and variational cargo ID lists:
 ------------------------------------------
 
@@ -727,6 +762,12 @@ Random triggers for vehicles:
 Random triggers for stations:
 	none at the moment
 
+	Note that stations have two sets of random bits.  Bits 0 to 15 are
+	a property of the station as a whole, and bits 16 to 19 are different
+	for each tile.  To get tile-based randomness, therefore use randbit=10
+	and nrand of no more than 16 (since only 4 random bits are available
+	per tile).
+
 Random triggers for cities:
 	none at the moment
 
@@ -772,6 +813,7 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			82 means the following variable refers to the engine
 			   of the consist of this vehicle (for vehicles)
 			   or the corresponding city (for stations)
+			   (undefined for canals)
 	B variable	what variable determines the cargo ID to choose
 			00 current date (counted as days from 1920)
 			01 current year (count from 1920, max. 2175 even with eternalgame)
@@ -834,12 +876,32 @@ structure in TTD's game data.  The 40+x variables are special variables that
 are computed on-the-fly, and aren't actually stored anywhere in memory.
 
 Vehicle properties for the variable:
-	40	returns dword 00nnbbff, where ff is the number of vehicle
+	40	consist position and length
+		returns dword 00nnbbff, where ff is the number of vehicle
 		within consist counted from engine (front), e.g. engine=0,
 		1st wagon/mail comp.=1, 2nd wagon/rotor=2, 3rd wagon=3 etc.,
 		bb is the number counted from end, e.g. last wagon=0,
 		next-to-last wagon=1 etc., and nn is the total number of
 		vehicles in the consist
+
+	41	same as 40, but only counting consecutive vehicles of the
+		same ID
+
+	42	consist cargo
+		returns dword 0000cctt, where tt is a bit mask of cargos and
+		cc is the most common cargo type (same list as in action 3),
+		tt has the following bits:
+			0  Passengers
+			1  Mail
+			2  Town cargo (Goods,Food,Candy)
+			3  Armored cargo (Valuables/Gold/Diamonds)
+			4  Bulk freight (Coal,Grain etc.,Ore,Fruit)
+			5  Piece goods (Livestock,Wood,Steel,Paper)
+			6  Liquids (Oil,Rubber)
+
+		if used with var.action 2 type 81 (vehicle) it returns only
+		cargo from this vehicle on, with type 82 (engine) that of
+		the whole consist
 
 	80+x	x is the offset into the vehicle structure, see struc veh
 		in ttdprot.ah, for example:
@@ -881,6 +943,16 @@ Town properties:
 		02	population
 		14	5 WORD values of the town zone radii
 		36	number of buildings
+
+Canal properties:
+	40+x	none defined at the moment
+
+	80+x	x is an offset into a generated canal structure, since
+		canals do not otherwise have in-game data
+		00	Height above ground, top parts of locks have the 
+			same height as the lower parts.
+		01	Groundtype, 0 normal, 1 desert, 2 rainforest, 
+			4 on or above snowline
 
 
 When displaying a vehicle in the purchase list, the game will show
@@ -924,7 +996,8 @@ Data is <03> <feature> <n-id> <ids>... <num-cid> [<cargo-type> <cid>]... <def-ci
 	W def-cid	default cargo ID
 
 For vehicles, the IDs are the vehicle IDs, whereas for stations they are
-of course the station IDs defined by action 0.
+of course the station IDs defined by action 0.  For canals, they specify
+the canal feature IDs (see below).
 
 If n-vid has bit 7 set, this action 3 must immediately follow an action 3.
 The engines defined by the first action 3 will then have an override for
@@ -946,6 +1019,17 @@ Note that you need to set the wagon's sprite number to FD using action 0,
 or it will only show the default sprite.  You do not need to specify any
 other cargo IDs for these wagons though, they will happily use the default
 sprite if no other definitions exist.
+
+For canals, the following feature IDs may be used:
+
+IDs	numsprites	Description
+00	04 (4)		Watercliffs
+01	18 (24)		Locks
+02	0C (12)		Dikes
+03	01 (1)		Icons
+
+Note that canals do not have any cargo, so you must use num-cid=00 and only
+specify the default action 2 ID.
 
 
 Action 4:	Define new vehicle names or other texts.
