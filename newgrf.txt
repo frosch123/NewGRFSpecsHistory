@@ -393,9 +393,9 @@ Data is <veh-type> <cargo-id> <80> <random-type> <nrand> <randbit> <cargo-IDs...
 	graphics matter.  To be on the safe side, always have identical
 	triggers in all final random lists of a chain.
 
-For num-loadtypes 81:	list of variational but deterministic cargo IDs
+For num-loadtypes 81/82: list of variational but deterministic cargo IDs
 
-Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
+Data is <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 		<nvar> <cid-definitions...> <default-cid>
 
 	Each cid-definition (except for the default-cid) is in the
@@ -404,7 +404,12 @@ Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
 	B veh-type	same as above
 	B cargo-id	same as above, can't share the same number with
 			another cargo ID
-	B 81		literal 81 (hex) to indicate a variational cargo ID list
+	B 81/82		literal 81 or 82 (hex) to indicate a variational
+			cargo ID list
+			81 means the following variable refers to the
+			   vehicle itself
+			82 means the following variable refers to the engine
+			   of the consist of this vehicle
 	B variable	what variable determines the cargo ID to choose
 			00 current date (counted as days from 1920)
 			01 current year (count from 1920, max. 2175 even with eternalgame)
