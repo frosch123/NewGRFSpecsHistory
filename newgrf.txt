@@ -482,7 +482,7 @@ other cargo IDs for these wagons though, they will happily use the default
 sprite if no other definitions exist.
 
 
-Action 4:	Define new vehicle names.
+Action 4:	Define new vehicle names or other texts.
 ~~~~~~~~~
 
 May appear anywhere in the .grf file.
@@ -490,7 +490,7 @@ May appear anywhere in the .grf file.
 Data is <veh-type> <language-id> <num-veh> <offset> <data...>
 
 	B veh-type	see action 0
-	B language-id	language ID (see below)
+	B language-id	language ID with bit 7 cleared (see below)
 	B num-veh	number of vehicles which are getting a new name
 	B offset	number of the first vehicle that gets a new name
 	S data		new names, each of them zero-terminated, after
@@ -513,6 +513,63 @@ The language is determined from the filesize of the TTD executable file.
 This means that if TTD Translator has been used to translate this copy,
 action 4 will still be applied for the language that the file used to be in,
 not the one it has been translated to, of course.
+
+In addition, if bit 7 of language-ID is set, you aren't changing a vehicle
+name, but (almost) any arbitrary text of TTD.  In that case, the data is
+interpreted slightly differently:
+
+Data is <veh-type> <language-id> <num-entries> <text-id> <data...>
+
+	B veh-type	see below
+	B language-id	language ID with bit 7 set
+	B num-entries	number of consecutive texts to change
+	W text-id	first text ID to change
+	S data		new texts, each of them zero-terminated, after
+			which the next name begins.
+
+This action is skipped unless the switch for the corresponding new vehicles
+has been turned on (i.e., newtrain, newrvs, newships or newplanes).  Use the
+special veh-type of "48" (hex) to do this action if *any* of these switches
+is on.  This special veh-type is only valid for this particular action.
+
+The text-id numbers are slightly complicated, unfortunately.  There exist
+several classes of strings, each which has a number of string entries.  Only
+some classes can be changed currently.  If you have the class, the text ID is
+calculated as string_class + string_entry_num.  These classes exist in TTD:
+
+	Class	Meaning		Example entry in the american version of TTD
+	0000	General		0:Cannot remove obstacles on land
+	0800	Bare land info	B:Rough land
+	1000	Railroad tracks	0:Land sloped in wrong direction
+	1800	Roads		0:Land sloped in wrong direction for road
+	2000[*]	Towns		0:Towns, 6:Population
+	2800	Trees		0:Plant trees
+	3000[*]	Rail station	0:Rail station selection
+	3800	Ship depot	0:Ship depot orientation
+	4000	Savegames	0:Save game
+	4800	Industries	2:Coal mine
+	5000	Tunnels		0:Train in tunnel
+	5800	Objects		0:Object in the way
+	6000	Debugger(??)	0:Debugger
+	6800	Difficulty	0:Difficulty level
+	7000[*]	Player Info	4:New face
+	7800[*] User-defined	e.g. train names, signs, etc.
+	8000	Vehicle names	0:Kirby Paul Tank
+	8800	Trains		0:Train depot
+	9000	Road vehicles	0:Road vehicle in the way
+	9800	Ships		0:Dock construction
+	A000	Aircraft	0:Airport construction
+	B000	Disasters	0:Zeppelin disaster at ...
+
+	[*] The strings in these classes cannot currently be changed.
+	    If you try anyway, the game will probably crash.
+
+To find the class and entry number for the string you're looking for, the
+easiest way is probably to load TTD Translator, find the first string in the
+class, and then count down to find the entry number.  This may not be
+perfectly accurate in some cases.  Alternatively, download Marcin's IDA Pro
+database, and find the text there.  It will have a label like a_Txxxx, where
+the xxxx is the text ID.
 
 
 Action 5:	Define new non-vehicle sprite blocks.
