@@ -1378,6 +1378,13 @@ Callback IDs stored in variable 0C:
 				callback 1B. Variable 40 contains the new stage.
 				You can return FF for stages that don't have
 				animated graphics to save resources.
+	1D	trains		Called for the train engine when attaching a
+				new vehicle to the current train.  Return xx to
+				disallow attaching and use the D0xx text ID
+				as second line of an error message, FD to
+				disallow attaching with the standard message,
+				FE to allow attaching, or FF to allow attaching
+				if the rail types match.
 
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
