@@ -1,0 +1,145 @@
+Cargo types:
+num	bitval	type
+ 0	1	Passengers
+ 1	2	Coal
+ 2	4	Mail
+ 3	8	Oil
+ 4	10	Livestock
+ 5	20	Goods
+ 6	40	Grain/Maize
+ 7	80	Wood
+ 8	100	Iron Ore
+ 9	200	Steel
+10	400	Valuables/Gold/Diamonds
+11	800	Paper
+12	1000	Food
+13	2000	Fruit
+14	4000	Copper Ore
+15	8000	Water
+16	10000	Rubber
+17	20000	Sugar
+18	40000	Toys
+19	80000	Batteries
+20	100000	Candy
+21	200000	Toffee
+22	400000	Cola
+23	800000	Cotton Candy
+24	1000000	Bubbles
+25	2000000 Plastic
+26	4000000	Fizzy Drinks
+
+
+
+Format of new ttdpatch.grf pseudo-sprite instructions:
+Each instruction looks like this in the .NFO file:
+
+*   length  command data
+
+length is specified in decimal, command is one hex byte and
+data are a series of <length> bytes in hex
+
+command specifies what to do with the following data
+
+  Command	What it does
+	0	Change vehicle info (like TTD Alter)
+	1	Define new sprite block
+	2	Define new cargo ID: load status to sprite mapping
+	3	Define vehicle to cargo ID mapping
+
+
+Specifics of the data for these actions:
+
+Action 0:
+	Data is <veh-type> <num-props> <num-info> <offset>
+		then repeated numprops times: <property> <new-info>
+
+	veh-type	0..3 to replace trains, road vehicles, ships or planes
+			(currently only ships work)
+	num-props	how many properties to change
+	num-info	how many vehicles to change
+	offset		offset into each property (i.e. how many vehicles
+			to skip before the first one to change)
+	property	what property to change, depends on the veh. type
+	new-info	new bytes of info
+
+	Properties common to all vehicle types
+	number	size	property
+	0	W	date of introduction (will have random amount added)
+	4	B	engine life in years
+	6	B	climates available (bit mask)
+
+	all of the above only apply to new games
+
+	Properties for trains
+	-none at the moment-
+
+	Properties for road vehicles
+	-none at the moment-
+
+	Properties for aircraft
+	-none at the moment-
+
+	Properties for ships
+	number	size	property
+     8	B	sprites
+	9	B	refittable (0 no, 1 yes)
+	10	B	cost base
+	11	B	speed in mph*1.6
+	12	B	default cargo type
+	13	W	capacity
+	15	B	base maintenance cost
+	16	D	bit mask of cargo types available for refitting
+
+
+
+Action 1:
+	Data is <veh-type> <num-sprites> <num-dirs> <num-cid> <num-vid>
+
+	veh-type        same as action 0 (currently only ships work)
+	num-sprite	number of set of num-dirs sprites
+	num-dirs	how many sprites in each set (i.e. for each direction)
+	num-cid		how many different cargo-ids are defined
+	num-vid		how many different vehicle-ids are defined
+
+The following num-sprites * num-dirs sprites will be actual sprites,
+not pseudo-sprites
+
+
+Action 2:
+	Data is <veh-type> <cargo-id> <num-loadtypes> <loadtypes...>
+
+	veh-type        same as action 0 (currently only ships work)
+	cargo-id	id of this particular cargo (w.r.t what sprites to show)
+	num-loadtypes	how many different states of load this set can display
+			this must not be zero, or division by zero will occur
+	loadtypes...	sprite ids for each of the states of load
+
+Note
+If there is only one load type, it is shown for all loads
+If there are two load types, the first is shown below 50%, the other above 50%
+If there are three load types, they are shown above/below 33% and 66%
+If there are four load types, they are shown above/below 25%, 50% and 75%
+etc...
+
+
+Action 3:
+	Data is <veh-type> <n-vid> <veh-id>... <def-cid> <num-vcid> [<cargo-num> <cid>]...
+
+	veh-type        same as action 0 (currently only ships work)
+	n-vid		how many vehicle ids this definition applies to
+	veh-id		the vehicle ids (counted from the first of its class)
+	def-cid		is the default cargo id, if the actual cargo doesn't
+			match any of the following
+	num-vcid	number of vehicle-specific cargo ids (=number of pairs that follow)
+	cargo-num	number of cargo for this cargo id (number from 0..26)
+	cid		cargo id for this type of cargo
+
+
+Note
+New sprites are used if the sprite number stored in the vehicle structure
+is equal to FF
+Then the vehicle's veh-id is looked up, and searched for its cargo
+The cargo-id that is found is then used to determine the load status,
+and the base sprite id to use
+Finally, the current direction is added to the base sprite id, and returned
+
