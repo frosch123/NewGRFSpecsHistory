@@ -530,12 +530,22 @@ Vehicle properties for the variable:
 	    additional engines.
 
 Station properties:
-	40+x	none at the moment
-	80+x	x is the
+	40+x	none defined at the moment
+
+	80+x	x is the offset into the station structure minus 6, see
+		struc station in ttdprot.ah, for example
+		10	number and length of train platforms
+		7A	facilities available
+
 
 Town properties:
-	40+x	none at the moment
-	80+x
+	40+x	none defined at the moment
+
+	80+x    x is the offset into the town structure, see struc town
+		in ttdprot.ah, for example
+		02	population
+		14	5 WORD values of the town zone radii
+		36	number of buildings
 
 
 When displaying a vehicle in the purchase list, the game will show
@@ -745,7 +755,8 @@ May appear anywhere in the .grf file.
 
 Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 
-	B param-num	See action 6
+	B param-num	See action 6.  The Action 7 is ignored if the parameter
+			was not defined at all.
 			Additionally, the following values test in-game
 			variables:
 
@@ -1080,6 +1091,8 @@ Num1	Bitval	Num2	Type
  18	1000000	 09	Bubbles
  19	2000000  0A	Plastic
  1A	4000000	 0B	Fizzy Drinks
+ 1B	8000000  0B	Paper (only in temperate climate, with moreindustriesperclimate switch)
+ 1C	10000000 08	undefined; unused slot in arctic climate
  FF	n/a	 n/a	Shown in purchase list
 
 
