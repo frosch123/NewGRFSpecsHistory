@@ -401,10 +401,10 @@ useful or not :)
 	09	V	Sprite layout, see below
 	0A	B	Copy sprite layout, copies sprite layout from stationid
 			given by the argument to the stationid given by the offset
+	0C	W	Bit mask of disabled platform lengths (bits 0..14)
+	0D	W	Bit mask of disabled numbers of platforms (bits 0..14)
 	??	B	Maximum platform length supported (1)
 	??	B	Maximum number of platforms supported (1)
-	??	W	Bit mask of disabled platform lengths (bits 1..15)
-	??	W	Bit mask of disabled numbers of platforms (bits 1..15)
 	??	B	Bit mask of track systems available (bits 0..2)
 	??	B	Type of station: 00=regular, 01=waypoint (won't accept cargo), ...
 	??	B	Layout type, 00=TTD default, FF=custom layout
