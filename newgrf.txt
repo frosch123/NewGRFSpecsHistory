@@ -192,7 +192,7 @@ amount between 31 months and 17 years is added to this as well.
 			(AI selects the highest-rank engine of those it can buy)
 	19	B	Steam/smoke/sparks type and sound effect for new graphics;
 			00..07=steam, 08..27=diesel, 28..31=electric,
-			32..37=monorail, 38..FF=maglev; default if unset is steam
+			32..37=monorail, 38..41=maglev; default if unset is steam
 	1A	B	Not a property, but an action: sort the current train
 			vehicle before train vehicle with the specified number
 			Use this when converting waggons to engines or vice versa
