@@ -405,8 +405,8 @@ Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
 	B nvar		how many different ranges of values there are
 
 	W cargo-ID	cargo-ID to use for this range of values
-	B low-range	lower bound of the range of values
-	B high-range	upper bound of the range of values
+	B low-range	lower bound of the range of values (inclusive)
+	B high-range	upper bound of the range of values (inclusive)
 
 	W default-cid	default cargo ID to use if none of the ranges
 			below matches; must be specified even if the ranges
