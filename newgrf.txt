@@ -384,13 +384,17 @@ variational/random graphics.  To use it, the patch sets the corresponding
 callback ID in the 0C variable, and starts from the vehicle's action 3
 definition, following the chain of action 2 entries until the final decision
 is reached.  This final decision is indicated by an action 2 returning a
-set-id with the high byte set to FF.  The low byte is then used as return
+set-id with the high byte set to 80.  The low byte is then used as return
 value of the callback.  Note that at least one action 2 is the chain MUST
-check the value of 0C, because a set-id with FF in the high byte is invalid
+check the value of 0C, because a set-id with 80 in the high byte is invalid
 for a regular action 2, and may only be returned for callbacks.  Unlike all
 other properties, callback flags are not saved with saveoptionaldata on,
 because they would not work without the graphics file anyway.  See
 callback.nfo at the source code site (in newgrfdemo directory) for examples.
+Most callbacks only use the 8 bits of the low byte as return value, but
+some use 15 bits, where the upper 7 bits come from bit 0..6 of the high byte
+(which has bit 7 set to indicate a callback result).  For example, to return
+1104 = 0450h, you would use 50 84.
 
 
 You can define several new properties for many vehicles using a single
@@ -849,6 +853,23 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 			means 1769 seconds (approx. half an hour) delay. Settings above this value
 			may cause strange behaviour.
 
+For global variables (feature 8):
+---------------------------------
+
+Feature 8 (which only has action 0, no others) allows writing to some
+global variables.
+
+These will be set as long as any of the new graphics features are enabled.
+
+	Properties for global variables
+	08	B	49 entries, base cost multipliers in powers of 2.
+			value of 08=default, 07=half, 06=quarter, 09=double etc.
+			setting these multipliers to values other than 08
+			incurs small rounding errors in all costs every time
+			the game is saved or loaded (but these will only be
+			noticable after many inflation steps)
+
+
 Action 1:	Define new vehicle sprite blocks.
 ~~~~~~~~~
 
@@ -1278,8 +1299,10 @@ Callback IDs stored in variable 0C:
 	15	all vehicles	refitted capacity.  Veh. var B9 will be the
 				new, climate-specific cargo type or FF when
 				only checking for refittability.  The return
-				value is not subject to the usual division
-				of capacities for cargos other than passengers.
+				value is used as is, and not divided by 2 or 4
+				cargos other than passengers.  This callback
+				uses 15 return bits to allow up to 32511
+				(7EFF) units.
 	16	trains		articulated engines.  If this callback is in
 				use, additional vehicles will be added to the
 				engine until the callback returns FF.  The
@@ -1320,23 +1343,9 @@ Callback IDs stored in variable 0C:
 				of the building will be on a non-desert tile.
 				(e.g. it can still be built on the very edge
 				of a desert)
-	18	trains (atm), generic
-				AI vehicle purchase selection. This callback
-				is called for generic vehicle features (see
-				action 3). It decides what vehicle ID the AI
-				should buy, at the moment only for train
-				wagons. Since no vehicle has been bought yet,
-				the regular train variables are not available,
-				and instead you get:
-					80 cargo type (climate specific, 00..0B)
-					81 cargo type (climate independent, 00..1B)
-					82 default vehicle type to buy
-					83 source industry type
-					84 destination industry type
-					85 distance between source and destination
-				The industry type is FF for towns and FE if
-				unknown (may happen if the industry is removed
-				while the AI builds a route).
+	18	generic		This is a fairly complicated callback, used for
+				various AI decisions.  For details please see 
+				http://wiki.ttdpatch.net/tiki-index.php?page=Callbacks
 	19	vehicles	Cargo text suffix. This callback choses a
 				misc grf text (set using action 4 textids D0xx)
 				and displays it after the cargo description,
