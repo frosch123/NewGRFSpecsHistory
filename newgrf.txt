@@ -1076,12 +1076,12 @@ Random triggers for town buildings:
 
 	The periodic tile processing loop constantly processes the tiles
 	of the map, processing any given tile in every 256 ticks
-	(approx. 3 TTD days). Since no "real" event happens to town
+	(approx. 3.5 TTD days). Since no "real" event happens to town
 	buildings, you have only this opportunity to re-randomize the
-	look of your building. If every 3 days is too fast for you, you
+	look of your building. If every 3.5 days is too fast for you, you
 	can multiply the time-out by setting property 16 for the given tile.
-	The time-out is 256 ticks*(prop. 16+1), so 0 means every 3 days,
-	1 means every 6 days, 2 means every 9 days and so on. If trigger
+	The time-out is 256 ticks*(prop. 16+1), so 0 means every 3.5 days,
+	1 means every 7 days, 2 means every 10.5 days and so on. If trigger
 	02 is activated, all parts of the building that has this trigger
 	set will get the same random bits, allowing you to randomize a
 	multi-tile building as one unit. On the other hand, if the tiles
@@ -1211,7 +1211,7 @@ Callback IDs stored in variable 0C:
 				allow building and zero to cancel it.
 				Since the building is not created yet, you can't
 				use variables 40 and 41 (they return zero).
-				You can use variable 42, 43 and all
+				You can use variable 42, 43, 44 and all
 				town variables, though. Property 0A and 13
 				are checked even if the callback returns
 				a nonzero value, they can cancel building
@@ -1362,6 +1362,16 @@ Town building properties:
 		3 and streetlights in zone 4
 
 	43	Ground type, the same as for canals
+
+	44	Returns dword rrrrCCcc, where cc means how many buildings
+		of the current type can be found in the current town, while
+		CC is the same for the whole map. Overridden old types
+		are considered to be the new type they were overridden with.
+		During callback 17, the current building isn't on the map yet,
+		and therefore isn't counted. In other cases, the building count
+		is at least one, since the current building is counted as well.
+		The two rr bytes are reserved for future use, use a bit mask
+		to get rid of them for now.
 
 	80+x	None defined, and none ever will because town buildings
 		don't have an internal structure. Trying to access these
