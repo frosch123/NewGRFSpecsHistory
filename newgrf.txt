@@ -333,7 +333,7 @@ defined.
 
 For num-loadtypes 80:	list of randomized cargo IDs
 
-Data is <veh-type> <cargo-id> <80> <random-type> <nrand> <cargo-IDs...>
+Data is <veh-type> <cargo-id> <80> <random-type> <nrand> <randbit> <cargo-IDs...>
 
 	B veh-type	same as above
 	B cargo-id	same as above, can't share the same number with
@@ -346,6 +346,7 @@ Data is <veh-type> <cargo-id> <80> <random-type> <nrand> <cargo-IDs...>
 			80	only change if *all* triggers are met,
 				by default changes if *any* triggers are met
 			(currently no other bits are defined)
+	B randbit	number of lowest bit to consider for the random number
 	B nrand		how many different randomized cargo IDs to show
 			must be a power of two (e.g. 2, 4, 8, 16....)
 	W cargo-IDs	list of nrand different cargo-IDs that are chosen randomly
@@ -355,9 +356,23 @@ Data is <veh-type> <cargo-id> <80> <random-type> <nrand> <cargo-IDs...>
 	When displaying vehicles in the purchase list, the game will always
 	show the first cargo-ID listed, not a random one.
 
+	If you have several random cargo ID lists in a chain, normally all of
+	them would check the same bits in an eight-bit randomized value.  To
+	prevent that, choose randbit such that all random checks are linearly
+	independent, or at least as independent as possible.  For example,
+	if one check has 8 possibilities, it needs three bits (values 0-7).
+	If you have another check, this means you shouldn't use the first
+	three bits, so set randbit to 3.  Then, if you have another check,
+	increase randbit again, but make sure not to check for any bits
+	above bit 7, because those bits will always be zero.
+
 	The cargo ID is always randomized when a vehicle is first bought,
 	but from then on it only changes when any or all of the trigger
-	conditions are met.
+	conditions are met.  These conditions are checked according to
+	the current graphics, so if there are several random lists in a
+	chain, only the triggers of the chain that defines the current
+	graphics matter.  To be on the safe side, always have identical
+	triggers in the final random list of a chain.
 
 For num-loadtypes 81:	list of variational but deterministic cargo IDs
 
@@ -395,7 +410,7 @@ Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
 	When displaying vehicle in the purchase list, the game will show
 	those variations based on external variables (dates etc.) correctly,
 	but variations based on vehicle properties (speed, age etc.) will
-	always show the default cargo-ID.
+	always show the first (not the default) cargo-ID.
 
 	Since only byte-ranges are supported, you must use the shift-num to
 	move the value into a useful range.  For example, the vehicle age
