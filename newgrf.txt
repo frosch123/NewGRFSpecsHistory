@@ -154,7 +154,9 @@ using persisentengines).
 
 	Properties for trains
 	05	B	track type (0=railroad, 1=monorail, 2=maglev)
-	08	B	AI special flag (unused when new train properties are enabled)
+	08	B	AI special flag: set to 1 if engine is 'optimized' for
+			passenger service (AI won't use it for other cargo),
+			0 otherwise
 	09	W	Speed in mph*1.6 (0 for wagons)
 	0B	W	Power (0 for wagons)
 	0D	B	Running cost factor (0 for wagons)
@@ -383,6 +385,7 @@ Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
 			00 current date (counted as days from 1920)
 			01 current year (count from 1920, max. 2175 even with eternalgame)
 			02 current month
+			03 current climate
 			80+x vehicle property (where x is the offset in veh struct)
 			for example,
 			B4 current vehicle speed (speed is at 34) [1]
@@ -497,9 +500,9 @@ Specify a language-id of 1F to apply this action 4 no matter what the
 language of TTD is.
 
 The language is determined from the filesize of the TTD executable file.
-This means that TTD Translator has been used to translate this copy, action 4
-will still be applied for the language that the file used to be in, not the
-one it has been translated to, of course.
+This means that if TTD Translator has been used to translate this copy,
+action 4 will still be applied for the language that the file used to be in,
+not the one it has been translated to, of course.
 
 
 Action 5:	Define new non-vehicle sprite blocks.
@@ -541,6 +544,9 @@ as necessary, for any kind of values.  The final byte must be
 a literal "FF" to indicate the end of the list, as TTDPatch cannot
 easily determine the length of a pseudo-sprite.
 
+This action is processed only in the initialization of a .grf file and
+is ignored during the activation.
+
 
 Action 7:	Skip next n sprites if condition is true.
 ~~~~~~~~~
@@ -550,6 +556,14 @@ May appear anywhere in the .grf file.
 Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 
 	B param-num	See action 6
+			Additionally, the following values test in-game
+			variables:
+			83 B current climate[2]
+			84 B .grf loading stage, 0=initialization, 1=activation
+			(all other values greater 80 are reserved)
+			Notes:
+				[1] Only valid during initialization
+				[2] Only valid during activation
 	B param-size	See action 6 (ignored for bit tests)
 	B condition-type
 			What condition to test for:
@@ -563,12 +577,80 @@ Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 			If a value is not a bit number, it has as many bytes
 			as the param-size specifies.
 	B num-sprites	How many sprites to skip if the condition is true
+			Special value 00 means skip rest of this grf file
 
 Notes:
 
 Take care that the number of sprites to skip does not end in the middle
 of a non-pseudo-sprite block, or TTDPatch will attempt to interpret these
 regular sprites as pseudo-sprites, and will most likely crash.
+
+
+Action 8:	Define GRF ID
+~~~~~~~~~
+
+Must be the first pseudo-sprite of a .grf file except for one or more
+action 7 entries that may (and probably should) come before it.
+
+Data is <version> <grf-id> <<description> <copyright>
+
+	B version	newgrf version, currently 01
+	4*B grf-id	globally unique ID of this .grf file
+	S description	description of the contents of this .grf file,
+	S copyright	copyright string describing the author and copyright
+
+This action is currently optional, but will be mandatory starting from the
+first beta version.
+
+The version must match or be compatible with the newgrf version of the
+intended TTDPatch version, see below.
+
+The grf-id must be a globally unique ID.  To choose an ID, use the initials
+of your first and last name as the first two bytes, along with two more bytes
+of your own choice as the last two bytes.  For example, if you are
+"Foobar Z. Boozle", use 46 42 00 00 for your first file, and 46 42 00 01
+for your second one.  If someone else has already used these initials,
+please use a different capitalisation or simply two other letters to keep the
+IDs unique.  The ID must not be the same as that of any other .grf file,
+either yours or somebody else's.  It should however be the same for both
+the DOS and Windows versions of a grf file.  If you make an update to a .grf
+file and think that it will be backward compatible with the savegames, give
+it the same ID as the original file.  To make it necessary to reactivate the
+.grf file, use a new ID.
+
+The ID is used to identify the .grf files to activate after loading a
+savegame.  When a game is saved, the IDs of all currently active .grf
+files will be stored, and when the game is loaded, only those .grf files
+with matching IDs will be activated (if they are still available).  For
+all other .grf files, this action 8 simply skips the rest of the .grf file,
+as if it had been a successful action 7.
+
+A .grf file is considered to be active if its action 8 has been processed
+successfully.  This means that you should control activation by placing
+an action 7 before the action 8, to skip a .grf file for the wrong
+climate, for example.
+
+The description should be a short zero-terminated string that describes
+the contents of the .grf file.  It might for example be used by other
+programs that allow selecting .grf files for newgrf.txt.
+
+The zero-terminated copyright string has no specified format.  It can
+contain anything you want to, but if you want to be recognized as the
+author of the .grf file, it should be something like
+"Copyright (C) 2003 by Foobar Z. Boozle.  All rights reserved."
+Optionally you can follow with your contact info and any other
+information you want to include in the .grf file.
+
+*Note, the ID checking and grf (de)activation does not work yet as
+of 1.9.1 alpha 28*
+
+Newgrf version table
+
+newgrf	compatible
+version	with		TTDPatch version
+00	00		1.9.1 alpha 27 and earlier
+01	00-01		1.9.1 alpha 28 and above
+02-FF	- not defined yet -
 
 
 4)  General information and hints and tips
@@ -666,7 +748,43 @@ Note that the format of the .nfo needs to be correct for this to work
 properly; in particular, the sprite numbers and pseudo-sprite lengths must
 already be *there* (as dummy numbers), but they need not be correct.
 
-d) Final words
+d) How to only load your graphics in some circumstances
+
+For example, you only want your graphics to be active in the right climate,
+or only if some other condition is true.
+
+For this, the first entries in your .grf file must be actions 7 which test
+that condition, and skip the rest of the file if true.  To skip the rest
+of the file, remember to specify a <num-sprites> parameter of 00.
+
+Immediately *after* your initial action 7 entries, you place the action 8
+that defines your GRF ID.
+
+This way, the .grf file is considered active or inactive in the right
+circumstances.
+
+e) The two stages of loading a .grf file
+
+Every .grf file is processed in two stages.  The first stage, initialization,
+is run only once.  In this stage, TTDPatch records the GRF IDs, and resolves
+all cargo IDs and sprite IDs.
+
+During initialization, actions 0, 3, 4 and 5 are ignored.  Action 6 is
+carried out *only* during initialization.  Action 7 is valid for both
+stages, however, instructions to skip the rest of the .grf file are ignored.
+This is so as to initialize .grf files even when they contain action 7
+entries that would skip the rest of the file and leave it uninitialized.
+
+A .grf file is activated only if it was active when the game was started.  If
+a game is loaded, only its active .grfs will be reactivated, unless
+"alwaysloadnewgrfs" is on.  A .grf file is considered active if its action 8
+has been processed, i.e. its action 8 hasn't been skipped using an action 7.
+
+During activation, only actions 0, 3, 4, 5, 7 and 8 are carried out.  All
+others are ignored, because they only need to be processed once at
+initialization.
+
+f) Final words
 
 Now, after reading all this, go back to section 1, and see if you can
 understand how that pseudo-sprite works.  Then all should be clear!
