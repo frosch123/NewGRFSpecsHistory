@@ -223,6 +223,9 @@ amount between 31 months and 17 years is added to this as well.
 				whatever reason
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
+			Bit 1	use callback for wagon length (see prop 21)
+				called every time the train leaves a depot or is
+				displayed in a depot
 	21	B	Make vehicle shorter by this amount (e.g. for tenders)
 			00=not shorter, 01=shorter by 12.5%, up to 07=shorter by 87.5%
 			Does not work for the first vehicle in a consist (i.e. the engine)
@@ -697,6 +700,7 @@ Vehicle properties for the variable:
 		10	checking whether vehicle should be powered
 			(for steam/smoke/spark production and added
 			wagon power/weight)
+		11	checking wagon length when leaving depot
 
 Station properties:
 	40+x	none defined at the moment
