@@ -1717,6 +1717,11 @@ Vehicle properties for the variable:
 			3  Player is human player's original company,
 			   now temporarily AI controlled
 
+	44	aircraft info
+		returns xxxxhhtt, hh=height above ground (more properly above
+		height of its shadow, buildings--incl. heliport--don't count),
+		tt=cur airport type (0=small, 1=large, 2=heliport, 3=oil rig)
+
 	80+x	x is the offset into the vehicle structure, see struc veh
 		in ttdprot.ah, for example:
 		B4	current vehicle speed (speed is at 34) [1]
