@@ -215,6 +215,8 @@ after being introduced (without using persisentengines).
 	0F	B	Capacity
 	10	B	Cargo type
 	11	B	Cost factor
+	12	B	Power in 10 hp (only used with rvpower)
+	13	B	Weight in 1/4 tons (only used with rvpower)
 
 
 	Properties for ships
