@@ -79,6 +79,7 @@ The following actions can be specified:
 	7	Skip following sprites if condition is true
 	8	Define the GRF ID, description and copyright info
 	9	Skip following sprites even during initialization
+	A	Replace arbitrary TTD sprites
 
 
 The format of the data of each action is different depending on the action,
@@ -572,6 +573,7 @@ Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 			84 B .grf loading stage, 0=initialization, 1=activation
 			85 * TTDPatch flags, only for bit tests, see common.h
 			     for bit numbers (you can test all 128 bits)
+			86 B road traffic side, bit 4 clear=left, set=right
 			(all other values greater 80 are reserved)
 	B param-size	See action 6 (ignored for bit tests)
 	B condition-type
@@ -673,6 +675,30 @@ entry.  For all others, you must use action 7, or they will not be
 initialized properly.  This is especially true of action 2 (cargo IDs) and
 action 3 (sprite IDs), which need to be resolved during initialization.
 If you skip action 2 or 3 using action 9, the graphics will be incorrect.
+
+
+Action 0A:	Replace arbitrary TTD sprites
+~~~~~~~~~~
+
+Using this action, you can replace arbitrary sprites in trg1.grf with your
+own version.
+
+Data is <num-sets> <set1> [<set2> ...]
+A set is <num-sprites> <first-sprite>
+
+	B num-sets	How many sets of sprites to replace.
+			Sets are continguous chunks of one or several sprites.
+Then for each set:
+	B num-sprites	How many sprites are in this set
+	W first-sprite	First sprite number to replace
+
+The sprites with which to replace TTD's sprites then follow this pseudo-sprite,
+just like in action 1.  The first of the following sprites will be the first
+sprite from the first set, and the following sprites and sets are used in the
+order of their appearance.
+
+You can find the sprite numbers by looking in trg1.pcx, they're the little
+numbers above each sprite.
 
 
 
@@ -809,8 +835,8 @@ a game is loaded, only its active .grfs will be reactivated, unless
 action 8 has been processed, i.e. its action 8 hasn't been skipped using
 an action 7.
 
-During activation, only actions 0, 3, 4, 5, 7, 8 and 9 are carried out.  All
-others are ignored, because they only need to be processed once at
+During activation, only actions 0, 3, 4, 5, 7, 8, 9 and 0A are carried out.
+All others are ignored, because they only need to be processed once at
 initialization.
 
 
