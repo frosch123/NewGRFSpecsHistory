@@ -943,6 +943,18 @@ Vehicle properties for the variable:
 		cargo from this vehicle on, with type 82 (engine) that of
 		the whole consist
 
+	43	current player info
+		return 00ttmmnn, where nn is the number of the current player
+		from 0 to 7, mm is the multiplayer player number with the
+		host player (or the single player) being 0 and the client
+		player being 1, and tt is the player type with the following
+		values:
+			0  Player is human player (permanent company)
+			1  Player is AI player (not managed)
+			2  Player is a human managing an AI company
+			3  Player is human player's original company,
+			   now temporarily AI controlled
+
 	80+x	x is the offset into the vehicle structure, see struc veh
 		in ttdprot.ah, for example:
 		B4	current vehicle speed (speed is at 34) [1]
@@ -972,6 +984,8 @@ Station properties:
 		or later
 
 	42	terrain type, 0=normal, 1=desert, 2=rainforest, 4=snow
+
+	43	current player info, see vehicle property 43 above
 
 	80+x	x is the offset into the station structure minus 10h, see
 		struc station in ttdprot.ah, for example
