@@ -143,16 +143,23 @@ then repeated numprops times: <property> <new-info>
 
 	Properties common to all vehicle types
 	number	size	property
-	00	W	date of introduction (will have random amount added)
+	00	W	date of introduction
 	03	B	vehicle life in years
-	04	B	engine life in years
+	04	B	model life in years
 	06	B	climates available (bit mask)
 
 All of the above only apply to new games, or when using Cht: ReloadEngines.
 
+The date is specified as number of days since 1920.  It will have a random
+number from 0 to 511 days added to it at the start of every new game, or after
+using "Cht: ResetVehicles".
+
 Vehicle life is the life of a vehicle before it needs to be replaced.
-Engine life determines how long an engine is available for sale (without
-using persisentengines).
+
+Model life determines how long this model is available for sale (without
+using persisentengines).  Usually this shoule be at least twice or three
+times as  long as the vehicle life.  When starting a new game, a random
+amount between 31 months and 17 years is added to this as well.
 
 	Properties for trains
 	05	B	track type (0=railroad, 1=monorail, 2=maglev)
