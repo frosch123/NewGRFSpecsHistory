@@ -275,6 +275,8 @@ amount between 31 months and 17 years is added to this as well.
 			Bit 2	use callback for load amount (see prop 07)
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
+	18	B	Max. tractive effort, see prop 1F for trains
+			Default 4C = 30%
 
 
 	Properties for ships
