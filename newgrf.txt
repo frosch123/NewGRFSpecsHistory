@@ -1334,6 +1334,11 @@ in action 6 and 7.  In addition, they can refer to the special variables
 available in action 7, or they can be FF to use the value of <data>.  If
 referring to parameters that are undefined, a value of 0 is used instead.
 
+Only in 2.0.1 alpha 16 or higher: you can access the parameters of another
+GRF file by using source2=FE, source1=the other GRF's parameter number and
+data=GRF ID.  This is only valid with operation 00 (set).  If the GRF ID
+cannot be found, a value of 0 is used for the parameter value instead.
+
 The target operand can also refer to the special variables from action 7,
 but at the moment the only variable that is valid to write is 8E.
 
