@@ -188,6 +188,28 @@ using persisentengines).  Usually this shoule be at least twice or three
 times as  long as the vehicle life.  When starting a new game, a random
 amount between 31 months and 17 years is added to this as well.
 
+If the early retirement property (26/1B/16/16) is not set, the model life
+works like this:
+
+Phase	Duration		Reliability
+  1	7 to 38 months		increases from 48-73% to 75-100%
+  2	prop. 04 less 8 years	stays constant at peak, 75-100%
+  3	10 to 20.5 years	decreases from peak to 25-50%
+
+(the ranges in time and reliability are randomized at the start of each game)
+
+At the end of phase 3, the model is retired and removed from the purchase
+list.  Note that when the model reliability starts dropping in phase 3, so
+does the reliability of every single vehicle of this make in the game.
+
+If persistentengines is on, the model never gets to within two years of the
+end of phase 2, it is kept in phase 2 as long as at least one vehicle of this
+make is in the game.
+
+If the early retirement property is set, the vehicle is retired this many
+years before the end of phase 2 (can be negative if desired), but not if
+persistentengines would keep the model alive.
+
 	Properties for trains
 	05	B	track type (0=railroad, 1=monorail, 2=maglev)
 	08	B	AI special flag: set to 1 if engine is 'optimized' for
@@ -269,6 +291,7 @@ amount between 31 months and 17 years is added to this as well.
 			using property 1B, in tons
 	24 (6)	B	High byte of vehicle weight, weight will be prop.24*256+prop.16
 	25 (7)	B	User-defined bit mask to set when checking veh. var. 42
+	26 (8)	B	Early retirement this many years before end of phase 2
 
 
 	Properties for road vehicles
@@ -299,6 +322,7 @@ amount between 31 months and 17 years is added to this as well.
 			by 1/2 to account for the smaller cross section of road
 			vehicles)
 	1A (5)	B	Refit cost, using 25% of the purchase price cost base
+	1B (8)	B	Early retirement this many years before end of phase 2
 
 
 	Properties for ships
@@ -321,6 +345,7 @@ amount between 31 months and 17 years is added to this as well.
 	14 (6)	B	Ocean speed fraction, sets fraction of top speed available
 			in the ocean; e.g. 00=100%, 80=50%, FF=0.4%
 	15 (6)	B	Canal speed fraction, same as above but for canals
+	16 (8)	B	Early retirement this many years before end of phase 2
 
 
 	Properties for aircraft
@@ -344,6 +369,7 @@ amount between 31 months and 17 years is added to this as well.
 			Bit 5	use callback 19 to show a suffix after the cargo text
 				(of the first compartment only, mail will remain unchanged)
 	15 (5)	B	Refit cost, using 1/32 of the default refit cost base
+	16 (8)	B	Early retirement this many years before end of phase 2
 
 
 Footnotes:
@@ -364,6 +390,8 @@ Footnotes:
 		* 9  07 8B 04 04 68 01 0A 02 <num-sprites>
 	(7) This property was introduced in 2.0.1 alpha 39, use this action 7:
 		* 9  07 8B 04 04 86 01 0A 02 <num-sprites>
+	(8) This property was introduced in 2.0.1 alpha 44, use this action 7:
+		* 9  07 8B 04 04 B8 01 0A 02 <num-sprites>
 
 
 Note:
@@ -460,12 +488,15 @@ all station IDs must have their class set in order, starting from ID 00.
 	10	W	Where to switch from "little" to "lots" of cargo
 			(see action 2)
 	11	B	Bit mask of tile types (0..7) for which to draw pylons
+			(default 0F draws pylons for 0..3, not for 4..7)
 	12	D	Bitmask of cargo types that should trigger cargo
 			triggers (for random graphics); if this is zero no
 			triggers at all will be activated to conserve CPU time
 	13	B	General flags
 			Bit 0	use different sprite set for ground sprites
 				(var. 10 is 1 for ground sprites, 0 otherwise)
+			Bit 1	divide cargo amount by station size in action 2
+				for better graphical display of cargo amount
 
 Class ID:
 
@@ -797,6 +828,10 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 			Bit 3		use callback 1C to change animation state when
 					the construction state cahnges
 			Bit 4		use callback 1E to decide the color of the building
+			Bit 5		use callback 1F to decide the acceptance of the building
+			Bit 6		use callback 20 to decide the lenght of the current
+					animation frame
+			Bit 7		use callback 21 to trigger destruction of building
 			Bit 0 is ignored on additional building tiles
 	15	B	House override byte. Setting this property makes this building appear
 			instead of the given old TTD building type. Setting the property is
@@ -839,6 +874,15 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 					won't remove it. Human players can still remove it,
 					so you may need to set a high remove cost/rating
 					to make them think twice.
+			Bit 2		Synchronized callback 1B. (for multi-tile buildings)
+					If this bit is set, callback 1B will be called
+					when the periodic processing reaches the main tile of
+					the building, and not when it reaches the current tile.
+					This is useful if your animation must run synchronously
+					on every tile of the building. If this bit is set,
+					callback 1B is called according to the main tile's
+					property 16, not the current one, to make sure every
+					tile stays in synch.
 			For multi-tile buildings, bit 0 is ignored for additional tiles, but
 			bit 1 must be set for all tiles to work correctly.
 	1A	B	The bottom seven bits define how many frames the animation consists of,
@@ -854,7 +898,7 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 	1B	B	Speed of the animation, i.e. the amount of time between switching frames.
 			The default value is 2, which means the switch occurs every 108 milliseconds.
 			Increasing this value by one doubles the wait, i.e. 3 will cause 216 ms delay,
-			while 4 will bause 432 ms, and so on. Values below 2 have the same effect
+			while 4 will cause 432 ms, and so on. Values below 2 have the same effect
 			as 2, so the default is the fastest possible setting. The maximum is 16, which
 			means 1769 seconds (approx. half an hour) delay. Settings above this value
 			may cause strange behaviour.
@@ -889,10 +933,9 @@ For industry tiles (feature 9):
 -------------------------------
 
 Industry tiles work similarly to town buildings, except that they are not stand-alone. This
-means an industry tile can't stand alone, it's always part of an industry. Since you can't
-define new industries or industry layouts yet, the only way to display these tiles is to
-override an old tile using property 9. When defining new industries becomes possible, you
-will be able to define their layout using old tiles and previously defined new tiles.
+means an industry tile can't stand alone, it's always part of an industry. You should
+either override an old tile using property 9 or use the tile in a new industry layout
+to make it appear on the map.
 
 	Properties for industry tiles
 	number	size	property
@@ -913,6 +956,147 @@ will be able to define their layout using old tiles and previously defined new t
 				acceptance in 1/8 units. If you don't need all three
 				cargo types, just zero out the high byte of the
 				extra properties.
+
+For industries (feature A):
+---------------------------
+
+Industries work similarly to town buildings as well, except that the maximum number of
+possible industries is 37, and non-overridden original types count towards this limit.
+Industries don't have a climate mask; you should simply not define an industry if it
+would be for the wrong climate.
+
+	Properties for industries
+	number		size	property
+	08		B	Substitute industry type. The first assignment of this
+				property copies all properties of the old type to
+				this new type. Unlike for houses, the substitute type
+				won't replace this new type if the definition becomes
+				unavailable.
+	09		B	Industry type override. The overridden industry type
+				won't be built in new random games. If the GRF file
+				becomes active after the game was started, industries
+				of the overridden new type won't be replaced by the
+				new type.
+	0a		V	Set industry layout(s), see format below
+	0b		B	Industry production flags
+				Bit	meaning
+				0	extractive industry (e.g. coal mine)
+				1	organic industry (e.g. forest)
+				2	processing industry (e.g. steel mill)
+	0c		W	Industry closure message. The text associated with this
+				textID will be shown if the industry announces closedown.
+	0d		W	Production increase message. The text associated with this
+				textID will be shown if the industry increases production.
+	0e		W	Production decrease message. The text associated with this
+				textID will be shown if the industry decreases production.
+	0f		B	Fund cost multiplier.
+	10		W	Two climate-dependent cargo numbers representing the cargo
+				types the industry can produce. Unused slots can be filled
+				with FFh.
+	11		D	Three climate-dependent cargo numbers representing the cargo
+				types the industry can accept, plus a fourth filler byte
+				which is always ignored. Unused slots can be filled with
+				FFh. These cargo types will only be really accepted if
+				the according acceptance of the industry tiles adds up
+				to 8/8 or more.
+	12,13		B	Production multipliers. If nonzero, the industry periodically
+				(6 or 7 times in a month) produces the given amount from the
+				according cargo type.
+	14		B	Minimal amount of cargo distributed. The produced cargo will
+				be distributed to stations only after it exceeds this amount.
+	15		V	Random sound effects. The data starts with a byte defining
+				the number of available effects, then one byte per effect.
+				TTD periodically picks one of the available effects randomly,
+				and plays it.
+	16		3B	Conflicting industry types. 3 bytes define 3 types that won't
+				appear in the vicinity of this industry. If a byte has bit 7
+				set, the bottom 6 bits are the ID of a new type already defined
+				in the current GRF file. If bit 7 is clear, the bottom 6 bits
+				specify an old industry type. FFh can be used to fill unused
+				entries. You shouldn't modify property 9 after the type has
+				been referenced by a property 16.
+	17		B	The probability of the industry appearing on the map while
+				generating a random game. Old types have this value between
+				0 and 10. If this value is nonzero, at least one instance of
+				this type is guaranteed to appear on the map.
+	18		B	The probability of the industry appearing on the map during
+				normal gameplay. Old types have this value between 0 and 10.
+	19		B	The color this industry type will appear in the map window
+				in the "Industries" mode.
+	1A		D	Special industry flags to define special behavior.
+				Bit	meaning
+				0	The industry periodically plants fields around itself
+					(temperate and arctic farms)
+				1	The industry cuts trees around itself and produces its first
+					output cargo from them (lumber mill)
+				2	The industry is built on water (oil rig)
+				3	The industry can only be built in towns with population
+					larger than 1200 (temperate bank)
+				4	The industry can only be built in towns (arctic and tropic
+					banks, water tower)
+				5	The industry is always built near towns (toy shop)
+				6	Fields are planted around the industry when it's built
+					(all farms)
+				7	The industry cannot increase its production on the temperate
+					climate (oil wells)
+				8	The industry is built only before 1950 (oil wells)
+				9	The industry is built only after 1960 (oil rig)
+				10	AI players will attempt to establish air and ship routes
+					going to this indstry (oil rig)
+				11	The industry can be exploded by a military airplane
+					(oil refinery)
+				12	The industry can be exploded by a military helicopter
+					(factory)
+				13	The industry can cause a subsidence (coal mine)
+	1B		W	The text ID of the text to be displayed when the industry is
+				generated during the game. By default, all industries have
+				"New xxx is being constructed near yyy", except forests, that
+				have "New Forest is being planted near yyy".
+	1C,1D,1E	D	Input cargo multipliers for the three input cargo types. If the
+				first (low) word of the property is M1 and the second (high)
+				word is M2, and X units of the corresponding cargo is delivered
+				to the industry, the output amounts are calculated this way:
+
+				output_type1 = X*M1/256
+				output_type2 = X*M2/256
+
+				The default value for old industry types is 0100h,0000h , so
+				every unit of input cargo produces one unit of output cargo
+				of the first type. Exceptions are temperate banks and oil rigs,
+				that have the default value of 0000h,0000h ,so input cargo doesn't
+				affect output.
+
+Format of industry layout tables:
+
+	B numlayouts	The total number of layouts following
+	D size		The size of the whole definition, excluding numlayouts and size
+	V layouts	numlayout layouts, see format below
+
+the format of an industry layout:
+
+As a special case, if the first byte of a new industry layout is FEh, then only two bytes follow:
+the industry number and the layout number. The specified layout of the specified old industry
+type will be added to the layout list of the current industry. The following applies only if
+the first byte wasn't FEh
+
+	B xoffs, B yoffs	Offsets counted from the northernmost tile of the industry,
+				specifying the position of the current tile. Both are taken as
+				signed integers, but cannot go negative except the special
+				case mentioned below.
+
+	B oldtile		An old tile type to be put on the given tile
+	--or--
+	0xFE,B newtile,0	newtile is the ID of an already defined industry tile. This
+				tile type will be placed on the given tile. Newtile is
+				followed by a filler byte that is ignored and must be zero.
+	--or--
+	0xFF			The given tile is checked for clearance, but nothing will be
+				placed on it. Useful to ensure some free space around your
+				industry. This is the only case where xoffs and yoffs can be
+				negative. If xoffs is negative, yoffs must be one lower than
+				the wanted value.
+
+The layout consists of a list of the above tile definitions, terminated by two bytes: 0,80h
 
 Action 1:	Define new vehicle sprite blocks.
 ~~~~~~~~~
@@ -1431,12 +1615,20 @@ Callback IDs stored in variable 0C:
 				FE - start animation with its current frame
 				FD - leave the animation in its current state
 				     (do nothing)
+				( for multi-tile buildings, property 19/bit 2
+				  modifies this callback slightly, see details there )
+
 	1C	town buildings	Called when the building changes its construction
 				stage ( during normal gameplay, that means exactly
 				four times ). Can return the same values as
 				callback 1B. Variable 40 contains the new stage.
 				You can return FF for stages that don't have
 				animated graphics to save resources.
+
+If any of the above three animation callbacks return a nonzero value in the high byte,
+it will be interpreted as a sound effect number, and the corresponding sound effect
+will be played on the house tile.
+
 	1D	trains		Called for the train engine when attaching a
 				new vehicle to the current train.  Return xx to
 				disallow attaching and use the D0xx text ID
@@ -1448,7 +1640,35 @@ Callback IDs stored in variable 0C:
 				should use. Should return the number of the color mapping
 				to be used. (For example, 775 for blue->dark blue mapping)
 				Can be useful if you want something more complex than four
-				random colors.
+				random colors. Uses 15 return bits.
+	1F	town buildings	Called to decide what the building tile can accept.
+				Uses 15 return bits. The returned word should have the
+				layout of Sgmp, where the letters mean the following:
+
+				S: 1 if the building should accept food/fizzy drinks
+				   instead of goods
+				g: If S is 1, the food acceptance in 1/8 units
+				   If S is 0, the goods acceptance in 1/8 units
+				m: mail acceptance in 1/8 units
+				p: passenger acceptance in 1/8 units
+
+				So, for example, giving the ID 8426h means "4/8 goods,
+				2/8 mail, 6/8 passenger", while giving the ID 9205 means
+				"2/8 food, 5/8 passenger".
+
+	20	town buildings	Called to decide how long the current animation frame should
+				last. The value of the delay should be given in the same way
+				as for property 1B. Decreasing the return value speeds the
+				animation up instantly. Increasing, on the other hand, doesn't
+				slow it down instantly: the actual duration of the current frame
+				will be somewhere between the old and the new delays. The new
+				delay is applied correctly for later frames.
+
+	21	town buildings	Called periodically, in a time interval specified by property
+				16. If it returns a nonzero value, the building gets removed
+				from the map as if the town decided to destroy it. You can use
+				this for example to remove a historical building, since those
+				cannot be normally removed by towns.
 
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
@@ -1528,6 +1748,12 @@ Station properties:
 		in bits 8-15: track type, 0=railroad, 1=electric, 2=monorail, 3=maglev
 
 	43	current player info, see vehicle property 43 above
+
+	44	bits 0-1 indicate whether tile is reserved using PBS
+		both bits are set if the tile is reserved, and clear if not
+		if PBS is off, bit 0 is clear and bit 1 is set to allow an
+		easy non-PBS fallback mechanism
+		all other bits reserved and must be masked out
 
 	80+x	x is the offset into the station structure minus 10h, see
 		struc station in ttdprot.ah, for example
@@ -1716,6 +1942,10 @@ Note that you need to set the wagon's sprite number to FD using action 0,
 or it will only show the default sprite.  You do not need to specify any
 other cargo IDs for these wagons though, they will happily use the default
 sprite if no other definitions exist.
+
+For stations, you can define a special cargo-type of FE which prevents the
+default from being used (which would show the sum of all cargo).  Instead,
+the given cid is displayed with no cargo at all.
 
 Generic feature callbacks: if you define an action 3 with n-id set to 0, and
 consequently no vehicle ids, this definition will be used for feature-specific
