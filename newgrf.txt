@@ -202,7 +202,10 @@ after being introduced (without using persisentengines).
 	15	B	Cargo type
 	16	B	Weight in tons
 	17	B	Cost factor
-	18	B	Not a property, but an action: sort the current train
+	18	B	Steam/smoke/sparks type for new graphics;
+			00..07=steam, 08..27=diesel smoke, 28..31=sparks,
+			32..FF=nothing; default if unset is steam
+	19	B	Not a property, but an action: sort the current train
 			vehicle before train vehicle with the specified number
 			Use this when converting waggons to engines or vice versa
 
@@ -312,7 +315,7 @@ Data is <veh-type> <cargo-id> <display-type> <data...> <num-loadtypes> <num-load
 	B num-loadingtypes
 			same as num-loadtypes but shown while vehicle is
 			either loading or unloading
-	B loadtypes...	sprite ids for each of the states of load; first for the
+	W loadtypes...	sprite ids for each of the states of load; first for the
 			"in motion" load states and then the "loading/unloading"
 			load states
 
