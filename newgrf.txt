@@ -218,7 +218,7 @@ amount between 31 months and 17 years is added to this as well.
 	1C (2)	B	Refit cost, using 50% of the purchase price cost base
 	1D (1)	D	Bit mask of cargo types available for refitting
 	1E (2)	B	Callback flags bit mask
-			Bit 0	use callback to determine whether vehicle is
+			Bit 0	use callback 10 to determine whether vehicle is
 				powered for steam/smoke/sparks generation and
 				determining whether to use added wagon
 				power/weight
@@ -227,12 +227,13 @@ amount between 31 months and 17 years is added to this as well.
 				whatever reason
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
-			Bit 1	use callback for wagon length (see prop 21)
+			Bit 1	use callback 11 for wagon length (see prop 21)
 				called every time the train leaves a depot or
 				is displayed in a depot
-			Bit 2	use callback for load amount (see prop 07)
+			Bit 2	use callback 12 for load amount (see prop 07)
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
+			Bit 3	use callback 15 to find refitted capacity
 	1F (3)	B	Coefficient of tractive effort, that is the ratio between
 			maximum tractive effort and weight; FF:TE=W, 80:TE=W/2, etc.
 			default is 4C, for TE=0.3*W (Wadh=W and mu=0.30)
@@ -247,7 +248,7 @@ amount between 31 months and 17 years is added to this as well.
 			realistic number due to the lack of TTd's consistent
 			scaling
 	21	B	Make vehicle shorter by this amount (e.g. for tenders)
-			00=not shorter, 01=shorter by 12.5%, up to 07=shorter by 87.5%
+			00=not shorter, 01=shorter by 12.5%, up to 05=shorter by 62.5%
 			Does not work for the first vehicle in a consist (i.e. the engine)
 	22 (1)	B	Set visual effect type (steam/smoke/sparks) as well as position
 			of effect relative to tip of engine; use x0=half length
@@ -418,9 +419,9 @@ all station IDs must have their class set in order, starting from ID 00.
 	0A	B	Copy sprite layout, copies sprite layout from stationid
 			given by the argument to the stationid given by the offset
 	0B	B	Callback flags
-			Bit 0	use callback to decide whether to make station
+			Bit 0	use callback 13 to decide whether to make station
 				available in construction menu
-			Bit 1	use callback to decide on tile type to draw
+			Bit 1	use callback 14 to decide on tile type to draw
 	0C	B	Bit mask of disabled numbers of platforms (bits 0..6, 7),
 			bit 7 applies for all lengths above 7 (i.e. "+" button)
 			at least one of bits 0..3 must be set
@@ -868,7 +869,14 @@ Callback IDs stored in variable 0C:
 				not (if callback returns 0)
 	14	stations	which tile type to draw, independent of the
 				actual tile type; this allows more than the
-				regular types 00..07
+				regular types 00..07.  Return only even
+				numbers, the odd even/ones will be used for
+				the appropriate direction
+	15	trains (atm)	refitted capacity.  Veh. var B9 will be the
+				new, climate-specific cargo type or FF when
+				only checking for refittability.  The return
+				value is not subject to the usual division
+				of capacities for cargos other than passengers.
 
 
 For all features, the 80+x variables are offsets into the corresponding
@@ -917,12 +925,14 @@ Vehicle properties for the variable:
 	    additional engines.
 
 Station properties:
-	40	returns NNLLcCpP, where NN is the number of platforms,
-		LL is their length, C is the platform number currently being
+	40	returns xTNLcCpP, where N is the number of platforms,
+		L is their length, C is the platform number currently being
 		drawn, and P is the position along this platform.  On the other
 		hand, c and p are the same as C and P but counted from the end.
 		All of C, P, c and p start counting from zero at the first
-		respectively last platform/position.
+		respectively last platform/position.  T is the current tile
+		type, and defined outside of callback 14.  x is undefined,
+		use a bit mask to remove it if necessary.
 
 	41	same as 40, but returning those number not for the whole
 		station but instead for each individually built section
