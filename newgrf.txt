@@ -599,11 +599,13 @@ Data is <graphics-type> <num-sprites> <other data...>
 
 	B graphics-type	What set of graphics the sprites define.
 	B num-sprites	How many sprites are in this set?
-	B other data	Graphics type specific data.  Not defined yet.
+	B other data	Graphics type specific data.
+			For all currently defined sets: number of sprites in set
 
 Possible values for graphics-type:
 	4  Pre-signal graphics (48 sprites or 112 with semaphores)
 	5  Overhead wires and pylons for electrified railways (xx sprites)
+	6  Foundations (retaining walls) for building on slopes (42 sprites)
 
 
 Action 6:	Apply parameter to following pseudo-sprite or sprite.
