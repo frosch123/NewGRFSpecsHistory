@@ -133,14 +133,15 @@ Action 0:	Define feature properties.
 May appear anywhere in the .grf file.
 
 In general, the format is
-	<00> <feature> <num-props> <num-info> <offset> (<property <new-info>)...
+	<00> <feature> <num-props> <num-info> <id> (<property <new-info>)...
 
 	B feature	0, 1, 2 or 3 for trains, road vehicles, ships or planes
 			4 for defining new train station sets
 	B num-props	how many properties to change per vehicle/station
 	B num-info	how many vehicles/stations to change
-	B offset	offset into each property (i.e. how many vehicles
-			to skip before the first one to change)
+	B id		ID of first vehicle/station to change, if num-info is
+			greater than one, this one and the following 
+			vehicles/stations will be changed
 	B property	what property to change, depends on the feature
 	V new-info	new bytes of info (variable size; depends on properties)
 
@@ -215,7 +216,9 @@ amount between 31 months and 17 years is added to this as well.
 			00=not shorter, 01=shorter by 12.5%, up to 07=shorter by 87.5%
 			Does not work for the first vehicle in a consist (i.e. the engine)
 	22 (1)	B	Set visual effect type (steam/smoke/sparks) as well as position
-			of effect relative to tip of engine from -4 (in front) to +11 (behind)
+			of effect relative to tip of engine; use x0=half length
+			before engine, x4=front of engine, x8=middle, xC=end,
+			xF=half length after engine or intermediate values
 			(positioning currently only works for steam)
 			00..0F=use effect from prop 19 (default), 10..1F=steam,
 			20..2F=diesel, 30=3F=electric, 40=disable effect
@@ -594,9 +597,27 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			0A animation counter, a word value, incremented every tick
 			40+x and
 			80+x feature-specific property, see below
-	B shift-num	number of bits to right-shift the variable by
-	B AND-mask	bit-mask to AND the value of the variable with after
-			shifting it; use FF to leave all bits as they are
+	V varadjust	adjust variable to a more useful range; either
+			B shift-num	number of bits to right-shift the
+					variable by (must be less than 32)
+			B AND-mask	bit-mask to AND the value of the
+					variable with after bit shifting
+					use FF to leave all bits as they are
+			or
+			B shift-num+40	as above but add 40h
+			B AND-mask	as above
+			B add-val	signed number to add to the variable before
+			B divide-val	dividing by this number less than 32
+					and returning the division result
+			or
+			B shift-num+80	as above but add 80h
+			B AND-mask	as above
+			B add-val	signed number to add to the variable before
+			B modulus-val	dividing by this number less than 32
+					and returning the modulus (remainder)
+			Note that for the add and divide operations, both the
+			variable and the divisor are taken to be signed numbers,
+			you may need to mask out bit 7 to do an unsigned division
 	B nvar		how many different ranges of values there are
 
 	W cargo-ID	cargo-ID to use for this range of values
@@ -612,7 +633,10 @@ structure in TTD's game data.  The 40+x variables are special variables that
 are computed on-the-fly, and aren't actually stored anywhere in memory.
 
 Vehicle properties for the variable:
-	40+x	none defined
+	40	return number of vehicle within consist counted from engine
+		in low byte (engine=0, 1st wagon/mail comp.=1, 2nd wagon/rotor=2
+		3rd wagon=3 etc.), and counted from end in high byte (last
+		wagon=0, next-to-last wagon=1 etc.)
 
 	80+x	x is the offset into the vehicle structure, see struc veh
 		in ttdprot.ah, for example:
