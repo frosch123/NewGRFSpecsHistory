@@ -550,7 +550,7 @@ May appear anywhere in the .grf file.
 Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 
 	B param-num	See action 6
-	B param-size	See action 6
+	B param-size	See action 6 (ignored for bit tests)
 	B condition-type
 			What condition to test for:
 				0  test for bit value being set
@@ -560,7 +560,7 @@ Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 				4  param is greater than value
 				5  param is less than value
 	V value		Bit number (a byte), or value to compare with
-			If a value not a bit number, it has as many bytes
+			If a value is not a bit number, it has as many bytes
 			as the param-size specifies.
 	B num-sprites	How many sprites to skip if the condition is true
 
