@@ -120,33 +120,6 @@ few sprites will have to be skipped, which may confuse TTDPatch.
 
 NOTE TO SELF:
 When making the next incompatible change to the .grf files, do this:
-- introduce another parameter in cargo ID, determining how sprites are
-  selected (just by load; by loading status; by uphill/downhill/flat;
-  by age; by random choice; etc...)
-- change loading sprites definition to be
-	<number1> <loadtypes1...> <number2> <loadtypes2...> <number3> <loadtypes3...>
-  so that chunks can easily be skipped
-- idea: make the cargo ID type be a bit mask, e.g.
-	bit 0: 0=loading/unloading 1=moving
-	bit 1: 0=above/below speed threshold (which needs another property)
-	bit 2: 0=...
-  then calculate the value of that byte, and it with the one in the
-  cargo type.  Finally, each chunk is <type> <number> <loadtypes>
-  and it is used it the type matches the anded value.
-- for random sprites:
-	a) make it part of the veh.ID -> cargo ID mapping
-	   e.g. num-vcid|0x80 indicates that there may be several cargo ids
-	   associated with each cargo type; then randomize one.
-	b) make it part of the cargo ID
-	   one byte could give a probability to skip to the next cargo ID
-	   instead, if a certain flag is set
-  when randomizing, consider vehicle number, and perhaps a new
-  field that indicates when the last loading began
-  maybe it should be specified in either a) or b) how the random appearance
-  is determined, i.e. another mask for veh.num/lastloadbegin/...
-- allow distinction between "regular" dual head and "forced" dual-head,
-  so as to allow tenders perhaps?  These of course shouldn't count for
-  multi-head speeds and powers...  maybe add them automatically somehow?
 - change order of size and param-num in action 6 (otherwise it's
   not possible to use param-num 0 except in the first entry)
 - change numbers in action 5; they can start at 0 now
@@ -155,8 +128,6 @@ When making the next incompatible change to the .grf files, do this:
   veh.ID), and patch the action 4 handler
 - or: store all languages in the .grf file
 - or: allow ttdpttxt.txt to overwrite any vehicle name, somehow
-- for train engines, flip the second engine using the ebx on stack in
-  getnewsprite
 - instead of using suffix "w" for windows grf files, use directory newgrfw
   for windows and newgrf for dos
 
@@ -308,26 +279,27 @@ next num-dirs sprites will be sprite set 1, and so on up to sprite set
 number num-sprites-1.
 
 
-Action 2:	Define cargo IDs.
+Action 2:	Define cargo IDs or randomized/variational cargo ID lists
 ~~~~~~~~~
 
 May appear only *after* the sprite block (action 1) it corresponds
 to, and not after any other sprite block.
 
-Data is <veh-type> <cargo-id> <display-type> <data...> <num-loadtypes> <num-loadingtypes> <loadtypes...>
+Data is <veh-type> <cargo-id> <num-loadtypes> <num-loadingtypes> <loadtypes...>
 
 	B veh-type	see action 0
-	B cargo-id	ID of this particular cargo (w.r.t. what sprites to show)
-	B num-loadtypes	how many different states of load this set can display,
-			while the vehicle is in motion
+	B cargo-id	ID of this particular definition, must be unique
+			for each sprite set
+	B num-loadtypes	bits 0-6: how many different states of load this set
+			can display, while the vehicle is in motion
+			bit 7: if set, this is not a cargo ID but a randomized
+			or variational cargo ID list (see below)
 	B num-loadingtypes
 			same as num-loadtypes but shown while vehicle is
 			either loading or unloading
 	W loadtypes...	sprite ids for each of the states of load; first for the
 			"in motion" load states and then the "loading/unloading"
 			load states
-
-Notes:
 
 A cargo ID defines a super-set of sprite sets that go together to display
 a certain cargo type, at various states of motion or loading.  For example,
@@ -347,8 +319,108 @@ If there are three load types, they are shown above/below 33% and 66%
 If there are four load types, they are shown above/below 25%, 50% and 75%
 etc...
 
+If num-loadtyoes has bit 7 set, the action is interpreted differently,
+depending on the value of num-loadtypes.
 
-Action 3:	Associate cargo IDs with vehicles.
+In that case, it specifies a list of cargo IDs instead, providing an
+intermediate step in the sprite determination.  Such a definition can itself
+specify randomized or variational cargo IDs, and the chain is followed until
+a regular cargo ID (def-type 00) is reached.  Note that the cargo IDs a
+randomized or variational definition refers to must have been defined before
+that definition, i.e. you can't refer to cargo IDs before they have been
+defined.
+
+
+For num-loadtypes 80:	list of randomized cargo IDs
+
+Data is <veh-type> <cargo-id> <80> <random-type> <nrand> <cargo-IDs...>
+
+	B veh-type	same as above
+	B cargo-id	same as above, can't share the same number with
+			another cargo ID
+	B 80		literal 80 (hex) to indicate a randomized cargo ID list
+	B random-type	a bitmask of triggers that cause the sprite to change
+			01	whenever the vehicle gets a new cargo load
+			02	whenever the vehicle enters a depot and is
+				serviced
+			80	only change if *all* triggers are met,
+				by default changes if *any* triggers are met
+			(currently no other bits are defined)
+	B nrand		how many different randomized cargo IDs to show
+			must be a power of two (e.g. 2, 4, 8, 16....)
+	W cargo-IDs	list of nrand different cargo-IDs that are chosen randomly
+			you can of course list a cargo-ID multiple times to
+			increase its probability
+
+	When displaying vehicles in the purchase list, the game will always
+	show the first cargo-ID listed, not a random one.
+
+	The cargo ID is always randomized when a vehicle is first bought,
+	but from then on it only changes when any or all of the trigger
+	conditions are met.
+
+For num-loadtypes 81:	list of variational but deterministic cargo IDs
+
+Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
+		<nvar> <cid-definitions...> <default-cid>
+
+	Each cid-definition is in the form <low-range> <high-range> <cargo-ID>
+
+	B veh-type	same as above
+	B cargo-id	same as above, can't share the same number with
+			another cargo ID
+	B 81		literal 81 (hex) to indicate a variational cargo ID list
+	B variable	what variable determines the cargo ID to choose
+			00 current date (counted as days from 1920)
+			01 current year (count from 1920, max. 2175 even with eternalgame)
+			02 current month
+			80+x vehicle property (where x is the offset in veh struct)
+			for example,
+			B4 current vehicle speed (speed is at 34) [1]
+			C0 vehicle age in days (age is at 40)
+			C4 year built (counted from 1920)
+	B shift-num	is a number of bits that the variable is right-shifted
+	B AND-mask	is a bit-mask to AND the value of the variable with
+			after shifting it
+			use FF to leave all bits as they are
+	B nvar		how many different ranges of values there are
+
+	W cargo-ID	cargo-ID to use for this range of values
+	B low-range	lower bound of the range of values
+	B high-range	upper bound of the range of values
+
+	W default-cid	default cargo ID to use if none of the ranges
+			below matches
+
+	When displaying vehicle in the purchase list, the game will show
+	those variations based on external variables (dates etc.) correctly,
+	but variations based on vehicle properties (speed, age etc.) will
+	always show the default cargo-ID.
+
+	Since only byte-ranges are supported, you must use the shift-num to
+	move the value into a useful range.  For example, the vehicle age
+	is normally a two-byte value.  If you want to specify the age range
+	15-20 years, the age would be 5479-7305 in days.  To get this to
+	fit in a byte value, you have to shift it to the right by 5 bits,
+	yielding 171-228, which introduces a slight rounding error of course.
+
+	Then you specify the range 171 (AB) to 228 (E4), for example using this
+	pseudo-sprite data (parenthesis for emphasis only):
+
+	* 17	00 03 81 C0 05 FF 02 (00 00 00 AA) (01 00 AB E4) (02 00)
+
+	This will use cargo ID 0 if the age is 0 to 5471 days, ID 1 if the
+	age is from 5472 to 7328 days, and ID 2 otherwise.
+
+
+	[1] Note that the units of the speed depends on the vehicle type
+	    For trains: in mph/1.6
+	    For road vehicles and ships: in mph/3.2
+	    For planes: in mph
+	    Also this is only valid for the first engine, not wagons or
+	    additional engines.
+
+Action 3:	Associate cargo IDs with vehicles
 ~~~~~~~~~
 
 May appear only *after* all corresponding cargo IDs have been
@@ -357,19 +429,35 @@ defined by an action 2 entry.
 Data is <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-type> <cid>]... <def-cid>
 
 	B veh-type	see action 0
-	B n-vid		how many vehicle IDs this definition applies to
+	B n-vid		bits 0-6: how many vehicle IDs this definition applies to
+			bit 7: if set, this is a wagon override definition (see below)
 	B veh-id	the vehicle IDs (counted from the first of its class)
 	B num-vcid	number of vehicle-specific cargo IDs in this definition
 	B cargo-type	type of this cargo type (e.g. mail=2, wood=7, see below)
 	W cid		cargo ID for this type of cargo
 	W def-cid	default cargo ID
 
-Notes:
 
-The default cargo ID is used when the current cargo type of the vehicles
-doesn't match any of those in the cargo-type list of this action.  If you
-specify a cargo ID for cargo-type FF, this is the ID that will show up in
-the vehicle purchase window, and in the announcement of new vehicles.
+If n-vid has bit 7 set, this action 3 must immediately follow an action 3.
+The engines defined by the first action 3 then will have an override for
+wagon sprites.  This means that you can specify here a number of
+wagon that will have different graphics when attached to these engines.
+
+These wagons will use the cargo IDs in the second action 3 whenever they are
+attached to one of the engine(s) defined in the first action 3.  Additional
+action 3 entries may follow, and if they are overrides, they always apply
+to the last action 3 that wasn't an override, but they must always follow
+one another with no other actions in between.
+
+For example, if the first action 3 defines the graphics for a train engine,
+the following action 3 can have bit 7 set in the n-vid byte, and list the
+train wagons whose graphics shall be different if attached to that train
+engine.
+
+Note that you need to set the wagon's sprite number to FD using action 0,
+or it will only show the default sprite.  You do not need to specify any
+other cargo IDs for these wagons though, they will happily use the default
+sprite if no other definitions exist.
 
 
 Action 4:	Define new vehicle names.
