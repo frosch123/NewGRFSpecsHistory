@@ -239,11 +239,10 @@ amount between 31 months and 17 years is added to this as well.
 			maximum tractive effort and weight; FF:TE=W, 80:TE=W/2, etc.
 			default is 4C, for TE=0.3*W (Wadh=W and mu=0.30)
 	20 (4)	B	Set realistic acceleration air drag coefficient c2
-			If unset, TTD will use the following values depending
-			on the top speed:
+			If unset, or set to 0, TTD will use the following values
+			depending on the top speed:
 			speed:	<32  32  48  64   96 128  192  256  384  512...
-			prop.20:  1   2   3   4    5   6    7    8    9   10
-			c2:     3/4 1/2 3/8 1/4 3/16 1/8 3/32 1/16 3/64 1/32
+			c2:     192 128 96 64 48  32  24  16  12   8
 			air drag in Newtons will then be c2*v*v with v in m/s,
 			although it is probably futile to attempt to make c2 a
 			realistic number due to the lack of TTd's consistent
@@ -291,8 +290,8 @@ amount between 31 months and 17 years is added to this as well.
 	18	B	Max. tractive effort, see prop 1F for trains
 			Default 4C = 30%
 	19	B	Set realistic acceleration air drag coefficient c2,
-			see train prop 20 (but with default values being larger
-			by 2 to account for the smaller cross section of road
+			see train prop 20 (but with default values being smaller
+			by 1/2 to account for the smaller cross section of road
 			vehicles)
 	1A (5)	B	Refit cost, using 25% of the purchase price cost base
 
@@ -313,6 +312,9 @@ amount between 31 months and 17 years is added to this as well.
 				or when buying or moving vehicles in the depot
 			Bit 3	use callback 15 to find refitted capacity
 	13 (5)	B	Refit cost, using 1/32 of the default refit cost base
+	14 (6)	B	Ocean speed fraction, sets fraction of top speed available
+			in the ocean; e.g. 00=100%, 80=50%, FF=0.4%
+	15 (6)	B	Canal speed fraction, same as above but for canals
 
 
 	Properties for aircraft
@@ -350,6 +352,8 @@ Footnotes:
 		* 9  07 8B 04 04 0E 01 0A 02 <num-sprites>
 	(5) This property was introduced in 2.0.1 alpha 30, use this action 7:
 		* 9  07 8B 04 04 2C 01 0A 02 <num-sprites>
+	(6) This property was introduced in 2.0.1 alpha 36, use this action 7:
+		* 9  07 8B 04 04 68 01 0A 02 <num-sprites>
 
 
 Note:
@@ -433,10 +437,10 @@ all station IDs must have their class set in order, starting from ID 00.
 			Bit 1	use callback 14 to decide on tile type to draw
 	0C	B	Bit mask of disabled numbers of platforms (bits 0..6, 7),
 			bit 7 applies for all lengths above 7 (i.e. "+" button)
-			at least one of bits 0..3 must be set
+			at least one of bits 0..3 must be clear
 	0D	B	Bit mask of disabled platform lengths (bits 0..6, 7),
 			bit 7 applies for all lengths above 7 (i.e. "+" button)
-			at least one of bits 0..4 must be set
+			at least one of bits 0..4 must be clear
 	0E	V	Define custom layout, see below
 	0F	B	Copy custom layout from stationid given by argument
 	10	W	Where to switch from "little" to "lots" of cargo
@@ -445,6 +449,9 @@ all station IDs must have their class set in order, starting from ID 00.
 	12	D	Bitmask of cargo types that should trigger cargo
 			triggers (for random graphics); if this is zero no
 			triggers at all will be activated to conserve CPU time
+	13	B	General flags
+			Bit 0	use different sprite set for ground sprites
+				(var. 10 is 1 for ground sprites, 0 otherwise)
 
 Class ID:
 
@@ -1129,7 +1136,7 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			0A animation counter, a word value, incremented every tick
 			0C current callback ID (feature-specific), set to 00
 			   when not in a callback
-			10 articulated engine build stage
+			10 articulated engine build stage, station sprite set type
 			11 current rail tool type (for station callbacks)
 			40+x and
 			80+x feature-specific property, see below
