@@ -82,6 +82,9 @@ The following actions can be specified:
 	8	Define the GRF ID, description and copyright info
 	9	Skip following sprites even during initialization
 	A	Replace arbitrary TTD sprites
+	B	Show error or warning messages
+	C	Do nothing (useful as comments)
+	D	Set parameters
 
 
 The format of the data of each action is different depending on the action,
@@ -104,7 +107,7 @@ The size can have the following values:
 
 
 Each sprite in the .grf file is such a pseudo-sprite, except for the
-graphics sprites preceeded by actions 1 or 5.
+graphics sprites preceeded by actions 1, 5 or A.
 
 The first (pseudo-)sprite has a special format.  It defines how many entries
 the .grf file contains in total.  TTDPatch needs to know that, because it
@@ -226,6 +229,9 @@ amount between 31 months and 17 years is added to this as well.
 			Bit 1	use callback for wagon length (see prop 21)
 				called every time the train leaves a depot or
 				is displayed in a depot
+			Bit 2	use callback for load amount (see prop 07)
+				this callback only happens after loading a game
+				or when buying or moving vehicles in the depot
 	21	B	Make vehicle shorter by this amount (e.g. for tenders)
 			00=not shorter, 01=shorter by 12.5%, up to 07=shorter by 87.5%
 			Does not work for the first vehicle in a consist (i.e. the engine)
@@ -262,6 +268,9 @@ amount between 31 months and 17 years is added to this as well.
 	16	D	Bit mask of cargo types available for refitting
 			(not refittable if 0 or unset)
 	17 (2)	B	Callback flags bit mask
+			Bit 2	use callback for load amount (see prop 07)
+				this callback only happens after loading a game
+				or when buying or moving vehicles in the depot
 
 
 	Properties for ships
@@ -275,6 +284,9 @@ amount between 31 months and 17 years is added to this as well.
 	10	B	Sound effect type (4=cargo ship, 5=passenger ship)
 	11	D	Bit mask of cargo types available for refitting
 	12 (2)	B	Callback flags bit mask
+			Bit 2	use callback for load amount (see prop 07)
+				this callback only happens after loading a game
+				or when buying or moving vehicles in the depot
 
 
 	Properties for aircraft
@@ -291,6 +303,9 @@ amount between 31 months and 17 years is added to this as well.
 			3b=supersonic, 3d=jet 2, 45=prop 2, 46=jet 3
 	13 (1)	D	Bit mask of cargo types available for refitting
 	14 (2)	B	Callback flags bit mask
+			Bit 2	use callback for load amount (see prop 07)
+				this callback only happens after loading a game
+				or when buying or moving vehicles in the depot
 
 
 Footnotes:
@@ -314,10 +329,10 @@ Note:
 	  but they can be set and will be saved for later
 	- Don't use property numbers that aren't defined here
 
-The callback mask is an advanced feature, currently only used for trains.  It
-allows various patch functions to change their behaviour according to the
-current graphics of a vehicle, and is therefore especially useful in conjunction
-with variational/random graphics.  To use it, the patch sets the corresponding
+The callback mask is an advanced feature that allows graphics files to change
+the behaviour of various patch functions according to the current graphics of
+a vehicle, and is therefore especially useful in conjunction with
+variational/random graphics.  To use it, the patch sets the corresponding
 callback ID in the 0C variable, and starts from the vehicle's action 3
 definition, following the chain of action 2 entries until the final decision
 is reached.  This final decision is indicated by an action 2 returning a
@@ -326,9 +341,8 @@ value of the callback.  Note that at least one action 2 is the chain MUST
 check the value of 0C, because a set-id with FF in the high byte is invalid
 for a regular action 2, and may only be returned for callbacks.  Unlike all
 other properties, callback flags are not saved with saveoptionaldata on,
-because they would not work without the graphics file anyway.  Ensure that
-the callback bits are only set if the corresponding action 2 is built for
-callbacks.
+because they would not work without the graphics file anyway.  See
+callback.nfo at the source code site (in newgrfdemo directory) for examples.
 
 
 You can define several new properties for many vehicles using a single
@@ -699,10 +713,12 @@ Vehicle properties for the variable:
 	    additional engines.
 
 	0C callback IDs
-		10	checking whether vehicle should be powered
-			(for steam/smoke/spark production and added
-			wagon power/weight)
-		11	checking wagon length when leaving depot
+		ID	class	usage
+		10	trains	checking whether vehicle should be powered
+				(for steam/smoke/spark production and added
+				wagon power/weight)
+		11	trains	checking wagon length when leaving depot
+		12	all	load amount callback (prop 07)
 
 Station properties:
 	40+x	none defined at the moment
@@ -972,6 +988,7 @@ Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 			     not 9; and only valid for condition-types 6 or 7)
 			8B D TTDPatch version
 			8D B TTD Version, 00=DOS, 01=Windows
+			8E D How many pixels to displace sprites in train info windows
 			(all other values greater 80 are reserved)
 
 	B param-size	See action 6 (ignored for bit tests, must be 4 for GRFID tests)
@@ -1083,6 +1100,10 @@ Action to skip	with 7	with 9
 8 (GRF ID)	yes	yes
 9 (skip sprite)	yes[*]	yes	[*] not during initialization, of course
 A (repl.sprite)	yes	yes
+B (error msg)	yes	yes
+C (NOP)		yes	yes
+D (set param)	yes[*]	yes	[*] not if parameter will be used in action 6
+E (deact.GRFs)	yes	yes
 
 
 Action 8:	Define GRF ID
@@ -1312,6 +1333,9 @@ The source1 and source2 operands refer to the grf parameter number like
 in action 6 and 7.  In addition, they can refer to the special variables
 available in action 7, or they can be FF to use the value of <data>.  If
 referring to parameters that are undefined, a value of 0 is used instead.
+
+The target operand can also refer to the special variables from action 7,
+but at the moment the only variable that is valid to write is 8E.
 
 Because the patch has to reallocate memory for the whole parameter list
 whenever a new parameter is added, you should set the parameter with the
