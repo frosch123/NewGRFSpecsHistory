@@ -235,6 +235,7 @@ amount between 31 months and 17 years is added to this as well.
 				or when buying or moving vehicles in the depot
 			Bit 3	use callback 15 to find refitted capacity
 			Bit 4	use callback 16 for articulated engines
+			Bit 5	use callback 19 to show a suffix after the cargo text
 	1F (3)	B	Coefficient of tractive effort, that is the ratio between
 			maximum tractive effort and weight; FF:TE=W, 80:TE=W/2, etc.
 			default is 4C, for TE=0.3*W (Wadh=W and mu=0.30)
@@ -287,6 +288,7 @@ amount between 31 months and 17 years is added to this as well.
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
 			Bit 3	use callback 15 to find refitted capacity
+			Bit 5	use callback 19 to show a suffix after the cargo text
 	18	B	Max. tractive effort, see prop 1F for trains
 			Default 4C = 30%
 	19	B	Set realistic acceleration air drag coefficient c2,
@@ -311,6 +313,7 @@ amount between 31 months and 17 years is added to this as well.
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
 			Bit 3	use callback 15 to find refitted capacity
+			Bit 5	use callback 19 to show a suffix after the cargo text
 	13 (5)	B	Refit cost, using 1/32 of the default refit cost base
 	14 (6)	B	Ocean speed fraction, sets fraction of top speed available
 			in the ocean; e.g. 00=100%, 80=50%, FF=0.4%
@@ -335,6 +338,8 @@ amount between 31 months and 17 years is added to this as well.
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
 			Bit 3	use callback 15 to find refitted capacity
+			Bit 5	use callback 19 to show a suffix after the cargo text
+				(of the first compartment only, mail will remain unchanged)
 	15 (5)	B	Refit cost, using 1/32 of the default refit cost base
 
 
@@ -715,21 +720,41 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 			both bytes before using the values. Since the year counting
 			stops in 2070 even with eternalgame on, start years below
 			150 mean "never", and end years above 150 mean "forever".
+			WARNING: Don't set the start year below 1930 (0Ah)
+			unless you know what you're doing! If TTDPatch finds
+			a building that is available before 1930, it will not
+			build old building types until that year, so you have
+			to provide at least one custom building type that is available
+			before 1930 for every town zone, or TTD may deadlock while
+			trying to create a random game or expand a town.
+			This setting is ignored for additional tiles (the setting for
+			the north tile is used always)
 	0B	B	Population. The population of the town will be increased
 			by this amount if this building is built. Additional
 			house parts should have a population of zero. The higher
 			this value is, the more passengers this building generates.
 	0C	B	Mail generation multiplier. The higher this value is, the
-			more mail the building generates.
+			more mail the building generates. For multi-tile buildings,
+			mail generation is done in per-tile basis, so you can
+			specify different values for every tile, altough distributing
+			the generation equally between tiles is suggested.
+
 	0D	B	Passenger acceptance (in 1/8 units). Must be between 0 and 8.
 	0E	B	Mail acceptance (in 1/8 units). Must be between 0 and 8.
 	0F	B	Goods (if positive) or food/fizzy drinks (if negative)
 			acceptance (in 1/8 units). Must be between -8 and 8.
 			Note that the officefood switch may modify acceptance in
 			the sub-arctic and subtropical climates.
+
+			All the above three values can be set independently for
+			tiles of multi-tile buildings, since every tile is processed
+			individually when determining what a station accepts.
+
 	10	W	Removal rating decrease. The LA rating of the player who destroys
-			this building goes down by this amount.
-	11	B	Removal cost multiplier.
+			this building goes down by this amount. Should be set to the same
+			value for every tile for multi-tile buildings.
+	11	B	Removal cost multiplier. Should be set to the same value for every
+			tile for multi-tile buildings.
 	12	W	Building name ID. The ID of the text that should be displayed in
 			the land query window. The name can also be set by action 4
 			(see there). Should be set to the same value for every tile for
@@ -746,18 +771,24 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 	14	B	House callback flags
 			Bit 0		use callback 17 to decide wether the house can be built
 					on a given tile
+			Callback flags are ignored for additional building tiles.
 	15	B	House override byte. Setting this property makes this building appear
 			instead of the given old TTD building type. Setting the property is
 			ignored if the given old house type is already overriden. You can
 			set this property more than once to override more old building types.
 			No new house of the overridden types will be built in towns.
+			This property works in a per-tile basis, so you override tiles of
+			old multi-tile buildings individually, altough the old type
+			will still be built if you don't override its north tile.
 	16	B	Periodic refresh multiplier, used for random triggers. See at
-			action 2.
+			action 2. Must be set for additional house tiles as well if you
+			want to randomize tiles independently.
 	17	D	Four colors used for random painting (see action 2). Each byte
 			of the dword defines a color, the values are the same as in action 3,
 			except that numbering starts from zero instead of 775. If not set,
 			this defaults to 04 08 0c 06 (red, blue, orange and green, the
-			colors of the modern office building).
+			colors of the modern office building). Can be set to different
+			values for tiles of multi-tile buildings.
 	18	B	Relative probablity of appearing. Old TTD house types have a
 			probablity of 16, and this is the default for new types as well.
 			Increase (or better multiply) this value to make your building
@@ -770,7 +801,18 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 			on the count and probablity of other houses as well: the more
 			types are available (and the higher their probablities are),
 			the less the chance is that your type will be chosen.
-
+			This setting is ignored for additional tiles.
+	19	B	Extra flags
+			Bit 0		This building appears during the generation of a
+					town, but not later, i.e. will appear in random
+					games, but new ones won't be built during the game.
+					Useful for buildings that are intended to be historical.
+			Bit 1		This building is protected, i.e. towns an AI players
+					won't remove it. Human players can still remove it,
+					so you may need to set a high remove cost/rating
+					to make them think twice.
+			For multi-tile buildings, bit 0 is ignored for additional tiles, but
+			bit 1 must be set for all tiles to work correctly.
 
 Action 1:	Define new vehicle sprite blocks.
 ~~~~~~~~~
@@ -955,8 +997,20 @@ The ground and building sprite fields have the following format:
 			788:	blue->brown
 			789:	blue->grey
 			790:	blue->white
+			795:	brownish red->blue
+			796:	brownish red->brown
+			797:	brownish red->white (ignoring original intensity)
+			798:	brownish red->red
+			799:	brownish red->green
+			800:	brownish red->white (darker parts are blueish)
+			801:	brownish red->yellow
 			802:	makes the whole sprite darker
+			803:	maps the sprite to black and white (for the newspaper)
 
+			In the above table, "blue" means the "magic blue" color
+			used, for example, on the vehicles, while "brownish red"
+			means the "magic" color used on some town buildings
+			( on the tall office block, for example).
 			If this field is zero, but recoloring is turned on in
 			bits 14-15, one of the colors specified in property 17
 			will be chosen randomly.
@@ -1211,11 +1265,26 @@ Callback IDs stored in variable 0C:
 				allow building and zero to cancel it.
 				Since the building is not created yet, you can't
 				use variables 40 and 41 (they return zero).
-				You can use variable 42, 43, 44 and all
+				You can use variable 42, 43, 44, 45 and all
 				town variables, though. Property 0A and 13
 				are checked even if the callback returns
 				a nonzero value, they can cancel building
 				as well.
+				For multi-tile buildings, this callback
+				is always called for the north tile type, but
+				the position you can access through variables
+				40, 42 and 43 is not guaranteed to be the
+				final position of the north tile. It's
+				guaranteed, though, that if the building
+				really gets built, one of its tiles will
+				occupy that tile. So, for example, if you
+				return zero for desert tiles, this neither
+				means that your building won't occupy any desert
+				tiles, nor that its north tile will be on a
+				non-desert tile; it only means that at least one tile
+				of the building will be on a non-desert tile.
+				(e.g. it can still be built on the very edge
+				of a desert)
 	18	trains (atm), generic
 				AI vehicle purchase selection. This callback
 				is called for generic vehicle features (see
@@ -1233,6 +1302,13 @@ Callback IDs stored in variable 0C:
 				The industry type is FF for towns and FE if
 				unknown (may happen if the industry is removed
 				while the AI builds a route).
+	19	vehicles
+				Cargo text suffix. This callback choses a
+				misc grf text (set using action 4 textids D0xx)
+				and displays it after the cargo description,
+				e.g. after "5 crates of goods", in the refit
+				screen and for trains in the purchase window
+				as well
 
 
 For all features, the 80+x variables are offsets into the corresponding
@@ -1373,6 +1449,23 @@ Town building properties:
 		The two rr bytes are reserved for future use, use a bit mask
 		to get rid of them for now.
 
+	45	Town expansion bits
+		Bit 0:		Set if TTD is currently creating a random town,
+				clear otherwise. PLEASE NOTE: while TTD is
+				generating a random town, town variables
+				82 (town population) and B6 (number of
+				buildings) are incorrect. The population
+				counter contains the population of buildings
+				generated _yet_, which means the final value
+				may be larger than you get. The building count
+				variable, on the other hand, is surely higher
+				than the final value will be. If you want
+				to check these variables during callback 17,
+				you may need to check variable 45 as well and
+				make adjustments if this bit is set.
+
+		Other bits are currently reserved for future use.
+
 	80+x	None defined, and none ever will because town buildings
 		don't have an internal structure. Trying to access these
 		variables crashes TTD.
@@ -1457,7 +1550,9 @@ sprite if no other definitions exist.
 Generic feature callbacks: if you define an action 3 with n-id set to 0, and
 consequently no vehicle ids, this definition will be used for feature-specific
 callbacks, such as callback 18. The action 2 given here must then return the
-desired callback result.
+desired callback result.  If a result is not a callback result (high byte
+is not FF), then the request is passed on to the previous generic callback
+handler, i.e. they are checked in reverse order.
 
 For canals, the following feature IDs may be used:
 
@@ -1568,8 +1663,8 @@ Special TTDPatch text IDs:
 		old TTD texts, this can be used to specify your custom name.
 		Don't forget to set the same text for all parts of a multi-tile
 		building.
-		WARNING: Don't set more than one text in this class at a time!
-		Use separate action 4s for every name.
+	D0xx	Set miscellaneous grf texts
+
 
 Action 5:	Define new non-vehicle sprite blocks.
 ~~~~~~~~~
@@ -1646,6 +1741,7 @@ Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 			8E D How many pixels to displace sprites in train info windows
 			8F D Track type cost multipliers (4 bytes, 3 of them used,
 			     either RR MR ML or RR EL MR/ML), value 08=standard rail cost
+			92 B Game mode, 0 in title screen, 1 in game and 2 in editor
 			(all other values greater 80 are reserved)
 
 	B param-size	See action 6 (ignored for bit tests, must be 4 for GRFID tests)
@@ -1707,6 +1803,7 @@ Bit numbers for TTDPatch flags (param-num = 85):
 	56	canals
 	57	newstartyear
 	58	freighttrains
+	59	newhouses
 
 Format of the TTDPatch version variable: MMmrbbbb
 	MM is the major version
@@ -2015,7 +2112,7 @@ the same value is later subtracted, to keep the parameter the same across
 loading or starting several games.
 
 
-Action E:	Deactivate other GRF file
+Action E:	Deactivate other GRF file or force activation of current file
 ~~~~~~~~~
 
 This action can be used to deactivate an earlier, incompatible version of
@@ -2045,6 +2142,18 @@ To handle the cases of incompatible sets being loaded and activated earlier,
 you can either attempt to overwrite all their settings and graphics, or
 simply deactivate this set in turn.
 
+If the given GRFID is identical to the GRFID of the file currently being
+processed, the current file is force-activated.  This is most useful for
+making changes to the title screen menu, which would otherwise not be
+possible.  It is strongly recommended not to use this feature in any way
+other than in combination with an action 7 that checks variable 92 (game
+mode) so that the activation only happens in the title screen.  Otherwise
+the GRF Status Windows (de)activation is bypassed entirely.
+
+It is best to limit this forced activation to as few actions as possible
+for maximum compatibility.
+
+
 Action F:	Define new town name styles
 ~~~~~~~~~
 
@@ -2056,7 +2165,9 @@ Data is <0F> <ID> [ [<langs> <name>]... 00 ] <num-parts> [ <textcount> <firstbit
 	B ID		ID of this definition in the bottom 7 bits. If bit 7 is set, this is a final
 			definition (it will be displayed in the Options window), if it's clear, this
 			is an intermediate definition that can be used to create more complex decision
-			chains (see later)
+			chains (see later). Final and intermediate definitions share the same 128
+			IDs, so 01h and 81h define the same ID for different usages, and not two
+			separate IDs.
 -- The following three fields are present in final definitions only
 
 	B langs		Bit mask of languages in which the following style name can be displayed.
@@ -2082,7 +2193,7 @@ Data is <0F> <ID> [ [<langs> <name>]... 00 ] <num-parts> [ <textcount> <firstbit
 			independent as possible
 
 	B bitcount	How many bits are used for determining the value of this part. The minimal
-			number should be the lowest power of 2 that is higher than than the sum
+			number should be the lowest power of 2 that is higher than the sum
 			of all probablities (e.g. 2 if the sum is <=4, 3 if it's <=8, 4 if <=16
 			and so on), but allowing more bits can make the distribution of decisions
 			smoother.
@@ -2120,6 +2231,12 @@ requirements, TTD tries again with a different random value. For this reason, yo
 must be able to generate at least 70 different acceptable combinations, since this is the maximum number of
 towns possible on a map, and TTD may deadlock if it can't find different names for every town on
 the map.
+
+The town name style dropdown menu doesn't support more than 19 entries, and since six entries are
+already reserved for the old styles, only 13 remain for new styles. If there are more than 13 final style
+definitions available, only the first 13 will be displayed in the dropdown menu, and therefore be
+selectable. The other definitions will still be available (e.g. they'll show up in games started with them),
+but cannot be selected from the user interface.
 
 If your GRF isn't available while its name style definition is used in a savegame, the town name style
 reverts back to German, but the towns get both English and German names; they appear in the wrong order
