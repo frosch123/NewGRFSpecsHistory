@@ -430,6 +430,8 @@ Data is <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			01 current year (count from 1920, max. 2175 even with eternalgame)
 			02 current month
 			03 current climate, 0=temp, 1=arctic, 2=trop, 3=toyland
+			09 date fraction, a word value, incremented by 0x375 every engine tick
+			0A animation counter, a word value, incremented every tick
 			80+x vehicle property (where x is the offset in veh struct)
 			for example,
 			B4 current vehicle speed (speed is at 34) [1]
@@ -767,7 +769,7 @@ action 7 entries that may (and probably should) come before it.
 
 Data is <version> <grf-id> <description> <copyright>
 
-	B version	newgrf version, currently 01
+	B version	newgrf version, currently 02
 	4*B grf-id	globally unique ID of this .grf file
 	S description	description of the contents of this .grf file
 	S copyright	copyright string describing the author and copyright
@@ -813,9 +815,6 @@ author of the .grf file, it should be something like
 "Copyright (C) 2003 by Foobar Z. Boozle.  All rights reserved."
 Optionally you can follow with your contact info and any other
 information you want to include in the .grf file.
-
-*Note, the ID checking and grf (de)activation does not work yet as
-of 1.9.1 alpha 35*
 
 Newgrf version table
 
