@@ -86,7 +86,7 @@ The following actions can be specified:
 	C	Do nothing (useful as comments)
 	D	Set parameters
 	E	Deactivate other .grf file
-
+	F	Define new town name styles
 
 The format of the data of each action is different depending on the action,
 and is described below.
@@ -687,7 +687,7 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 			Bit 7	This building is a stadium
 
 			If your building isn't 1x1, set flags accordingly
-			for the top tile, then define the next 1 or 3
+			for the north tile, then define the next 1 or 3
 			tiles (by setting their property 8) with flags set
 			to zero. There should be no property 8 setting between
 			the first tile and the additional tiles. For 2x2
@@ -705,7 +705,9 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 	0A	W	Availablity years. The low byte is the minimum year,
 			the high is the maximum. The building can only be built
 			between these two years (inclusive). 1920 are added to
-			both bytes before using the values.
+			both bytes before using the values. Since the year counting
+			stops in 2070 even with eternalgame on, start years below
+			150 mean "never", and end years above 150 mean "forever".
 	0B	B	Population. The population of the town will be increased
 			by this amount if this building is built. Additional
 			house parts should have a population of zero. The higher
@@ -735,7 +737,7 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 
 			This property should be set to zero for additional building tiles.
 	14	B	House callback flags
-			Bit 1		use callback 17 to decide wether the house can be built
+			Bit 0		use callback 17 to decide wether the house can be built
 					on a given tile
 	15	B	House override byte. Setting this property makes this building appear
 			instead of the given old TTD building type. Setting the property is
@@ -744,10 +746,23 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 			No new house of the overridden types will be built in towns.
 	16	B	Periodic refresh multiplier, used for random triggers. See at
 			action 2.
-
-When a town decides to expand, each active house type (both old and new ones) has uniform
-probablity to appear, so the more new houses you define, the less old TTD buildings will
-appear.
+	17	D	Four colors used for random painting (see action 2). Each byte
+			of the dword defines a color, the values are the same as in action 3,
+			except that numbering starts from zero instead of 775. If not set,
+			this defaults to 04 08 0c 06 (red, blue, orange and green, the
+			colors of the modern office building).
+	18	B	Relative probablity of appearing. Old TTD house types have a
+			probablity of 16, and this is the default for new types as well.
+			Increase (or better multiply) this value to make your building
+			appear relatively more often, or decrease (divide) it to make
+			it rarer. If you set this to zero, the house type never appears.
+			The minimal useful value 1 means it's sixteen times less probable
+			to build this type than a normal type, while the maximum setting
+			of 255 means it's almost sixteen times more probable. The
+			probablity is relative since the absolute probablity depends
+			on the count and probablity of other houses as well: the more
+			types are available (and the higher their probablities are),
+			the less the chance is that your type will be chosen.
 
 
 Action 1:	Define new vehicle sprite blocks.
@@ -769,8 +784,8 @@ Data is <01> <feature> <num-sets> <num-ent>
 				different sprites that make up a station
 			For canals, it depends on the canal feature, 
 				see action 3
-			For houses, this should be 1. If it's more, only the
-				first sprite of each set will be used
+			For houses, this should be between 1 and 4.
+				Sprites after the first four are always ignored.
 				see action 2 and 3
 
 The following num-sets times num-ent sprites will be real sprites,
@@ -914,7 +929,7 @@ The ground and building sprite fields have the following format:
 	Bits 14-15:	0: draw sprite normally
 			1: draw sprite in transparent mode
 			2: recolor sprite
-	Bits 16-31:	Color translation special sprite number (used only if
+	Bits 16-30:	Color translation special sprite number (used only if
 			bits 14-15 are set to 2). Must be a regular TTD sprite.
 			Useful values (decimal):
 			775:	blue->dark blue
@@ -934,10 +949,25 @@ The ground and building sprite fields have the following format:
 			789:	blue->grey
 			790:	blue->white
 			802:	makes the whole sprite darker
-	Bit 32:		If set, the bottom 13 bits is a number of a sprite set
-			in the most recent action 1, and the first sprite of the
-			set will be used. If clear, the bottom 13 bits is a
-			regular TTD sprite number.
+
+			If this field is zero, but recoloring is turned on in
+			bits 14-15, one of the colors specified in property 17
+			will be chosen randomly.
+	Bit 31:		If clear, the bottom 14 bits is a regular TTD sprite number. If set,
+			the bottom 14 bits is a number of a sprite set in the most recent action 1,
+			and the used sprite is decided according to the current construction state
+			and the number of sprites in the set:
+
+			- if there's only one sprite, it's used always
+			- if there are two sprites, the first is used during
+			  construction (stages 0-2), and the second is used for the finished
+			  building (stage 3)
+			- if there are three sprites, the first will be used in the beginning of the
+			  construction (stage 0), the second will be used during the rest of the
+			  construction (stages 1 and 2) and the third will be used for the complete
+			  building (stage 3)
+			- if there are four or more sprites, the first four will be used for the four
+			  construction stages. Sprites after the first four are always ignored.
 
 The ground sprite should be exactly the same size and shape as TTD's flat tile.
 In general, it shouldn't contain anything that has a Z dimension because any
@@ -1100,6 +1130,7 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			0C current callback ID (feature-specific), set to 00
 			   when not in a callback
 			10 articulated engine build stage
+			11 current rail tool type (for station callbacks)
 			40+x and
 			80+x feature-specific property, see below
 	V varadjust	adjust variable to a more useful range; either
@@ -1178,6 +1209,24 @@ Callback IDs stored in variable 0C:
 				are checked even if the callback returns
 				a nonzero value, they can cancel building
 				as well.
+	18	trains (atm), generic
+				AI vehicle purchase selection. This callback
+				is called for generic vehicle features (see
+				action 3). It decides what vehicle ID the AI
+				should buy, at the moment only for train
+				wagons. Since no vehicle has been bought yet,
+				the regular train variables are not available,
+				and instead you get:
+					80 cargo type (climate specific, 00..0B)
+					81 cargo type (climate independent, 00..1B)
+					82 default vehicle type to buy
+					83 source industry type
+					84 destination industry type
+					85 distance between source and destination
+				The industry type is FF for towns and FE if
+				unknown (may happen if the industry is removed
+				while the AI builds a route).
+
 
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
@@ -1251,7 +1300,8 @@ Station properties:
 		this variable is only valid for stations built in 2.0.1 alpha 26
 		or later
 
-	42	terrain type, 0=normal, 1=desert, 2=rainforest, 4=snow
+	42	in bits 0-7: terrain type, 0=normal, 1=desert, 2=rainforest, 4=snow
+		in bits 8-15: track type, 0=railroad, 1=electric, 2=monorail, 3=maglev
 
 	43	current player info, see vehicle property 43 above
 
@@ -1387,6 +1437,11 @@ or it will only show the default sprite.  You do not need to specify any
 other cargo IDs for these wagons though, they will happily use the default
 sprite if no other definitions exist.
 
+Generic feature callbacks: if you define an action 3 with n-id set to 0, and
+consequently no vehicle ids, this definition will be used for feature-specific
+callbacks, such as callback 18. The action 2 given here must then return the
+desired callback result.
+
 For canals, the following feature IDs may be used:
 
 IDs	numsprites	Description
@@ -1496,6 +1551,8 @@ Special TTDPatch text IDs:
 		old TTD texts, this can be used to specify your custom name.
 		Don't forget to set the same text for all parts of a multi-tile
 		building.
+		WARNING: Don't set more than one text in this class at a time!
+		Use separate action 4s for every name.
 
 Action 5:	Define new non-vehicle sprite blocks.
 ~~~~~~~~~
@@ -1571,7 +1628,7 @@ Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 			8D B TTD Version, 00=DOS, 01=Windows
 			8E D How many pixels to displace sprites in train info windows
 			8F D Track type cost multipliers (4 bytes, 3 of them used,
-			     either RR MR ML or RR EL MR/ML), 08=reference
+			     either RR MR ML or RR EL MR/ML), value 08=standard rail cost
 			(all other values greater 80 are reserved)
 
 	B param-size	See action 6 (ignored for bit tests, must be 4 for GRFID tests)
@@ -1696,7 +1753,7 @@ B (error msg)	yes	yes
 C (NOP)		yes	yes
 D (set param)	yes[*]	yes	[*] not if parameter will be used in action 6
 E (deact.GRFs)	yes	yes
-
+F (town names)	no	yes
 
 Action 8:	Define GRF ID
 ~~~~~~~~~
@@ -1927,7 +1984,7 @@ data=GRF ID.  This is only valid with operation 00 (set).  If the GRF ID
 cannot be found, a value of 0 is used for the parameter value instead.
 
 The target operand can also refer to the special variables from action 7,
-but at the moment the only variable that is valid to write is 8E.
+but at the moment the only variables that is valid to write are 8E and 8F.
 
 Because the patch has to reallocate memory for the whole parameter list
 whenever a new parameter is added, you should set the parameter with the
@@ -1971,6 +2028,86 @@ To handle the cases of incompatible sets being loaded and activated earlier,
 you can either attempt to overwrite all their settings and graphics, or
 simply deactivate this set in turn.
 
+Action F:	Define new town name styles
+~~~~~~~~~
+
+This action can be used to define new town name styles for random games.
+
+Data is <0F> <ID> [ [<langs> <name>]... 00 ] <num-parts> [ <textcount> <firstbit> <bitcount>
+	 [ <probablity> <part/ID> ]... ]...
+
+	B ID		ID of this definition in the bottom 7 bits. If bit 7 is set, this is a final
+			definition (it will be displayed in the Options window), if it's clear, this
+			is an intermediate definition that can be used to create more complex decision
+			chains (see later)
+-- The following three fields are present in final definitions only
+
+	B langs		Bit mask of languages in which the following style name can be displayed.
+			It's in the same format as for action 4, except that bit 7 is ignored.
+
+	S name		Null-terminated style name to be displayed in the Options window.
+
+	00		After defining all the necessary mask-name pairs, a literal 00 terminates
+			the style name definition. If no appliable name is found, "(unnamed style)"
+			will be displayed in the Options window.
+
+-- End of style name fields
+
+	B num-parts	How many parts this name is put together from.
+
+-- The following fields are repeated for every part (num-parts times)
+
+	B textcount	The number of possible values for this part
+
+	B firstbit	Number of the lowest bit that counts for determining the value of the part.
+			Every town has 32 random bits for random naming. You can use this field
+			to make the decisions for every part linearly independent, or at least as
+			independent as possible
+
+	B bitcount	How many bits are used for determining the value of this part. The minimal
+			number should be the lowest power of 2 that is higher than than the sum
+			of all probablities (e.g. 2 if the sum is <=4, 3 if it's <=8, 4 if <=16
+			and so on), but allowing more bits can make the distribution of decisions
+			smoother.
+
+-- The following fields are repeated for every text (textcount times) in every part
+
+	B probablity	The relative probablity of the following name to appear in the bottom 7 bits.
+			Bit 7 decides the meaning of the following field.
+
+	S part		If bit 7 of probablity is clear, the following field is a null-terminated
+			string containing a name part itself. This can be an empty string (just
+			a plain zero byte) to avoid generating this part. (This can be useful
+			for an optional part: give a high probablity to an empty part to appear,
+			and low probablities to many non-empty parts, so you effectively decrease
+			the chance that the part appears at all)
+
+	B ID		If bit 7 of the probablity is set, the following byte is an ID for an
+			intermediate action F. The random name defined by the given ID is generated,
+			then inserted into the current name as a name part. Specifying an ID that
+			isn't defined yet results in an error and therefore disabling all town
+			name definitions in the file.
+
+Note that town name styles are special since they have to be available on the title screen as well,
+where the graphics files aren't activated yet. This means they're processed at the initialization
+stage only, and can be skipped only by action 9, but doing so will prevent them from working for
+the rest of the game. The only way to disable a new town name style once it's loaded is to disable
+the entire GRF file it's situated in (by using the "New GRF status" window or by putting an exclamation
+mark next to the filename in newgrf(w).txt).
+
+A town name generated this way must meet some requirements to be accepted by TTD: it can't be empty
+(so you don't have to worry even if your chain can generate an empty string), can't be a name that's
+already given to a town (to avoid duplicate town names),  can't be longer than 31 characters and 
+its displayed form can't be wider than 130 pixels. If a generated name doesn't meet all these
+requirements, TTD tries again with a different random value. For this reason, your town name style
+must be able to generate at least 70 different acceptable combinations, since this is the maximum number of
+towns possible on a map, and TTD may deadlock if it can't find different names for every town on
+the map.
+
+If your GRF isn't available while its name style definition is used in a savegame, the town name style
+reverts back to German, but the towns get both English and German names; they appear in the wrong order
+in the town list and duplicate town names may appear. However, no data loss occurs, so the correct
+names are restored as soon as your definition becomes available again.
 
 4)  General information and hints and tips
 ------------------------------------------
