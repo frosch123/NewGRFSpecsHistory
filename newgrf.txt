@@ -501,12 +501,17 @@ The data is specified in this way:
 	<num> <data1> <data2> ... <datan>
 
 Here, the meaning is
-	B num		Number of different tiles supported
-			Normally this is 8, but you can specify fewer as well
-			Using callback bit 1, specifying more makes sense too
-			If not equal to 8, this value must be the same for
-			all stations set by this action 0
+	V num		Number of different tiles supported
 	V data1...	The variable size data for each tile, specified below
+
+Explanation of num
+	- Normally this is 8, but you can specify fewer as well
+	- Using callback bit 1, specifying more makes sense too
+	- If not equal to 8, this value must be the same for all stations set
+	  by this action 0
+	- To specify 0..254 tile types, simply use that byte value as num
+	- To specify 255..32511 tile types, use FF follows by that word value,
+	  e.g. for 320 (140 hex) use FF 40 01.
 
 The content of each of the eight data sets is either a new sprite layout:
 
