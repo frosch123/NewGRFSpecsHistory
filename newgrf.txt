@@ -412,7 +412,7 @@ Data is <02> <veh-type> <set-id> <80/83> <random-triggers> <randbit> <nrand> <se
 			cargo ID list
 			80 means the triggers refer to the vehicle/station itself
 			83 means the triggers refer to the engine of the
-			   consist of this vehicle (for vehicles), to the
+			   consist of this vehicle (for vehicles), or the
 			   corresponding city for stations
 	B random-triggers
 			a bitmask of triggers that cause the sprite to change
@@ -821,11 +821,12 @@ Format of the TTDPatch version variable: MMmrbbbb
 	1.9.1 alpha 50 has MM=1, m=9, r=1, bbbb=50*10 or 019101F4
 	2.0 beta 4 has MM=2, m=0, r=4, bbbb=4*10 or 02040028
 	2.0 final has MM=2, m=0, r=7, bbbb=70 or 02070046
+	2.0 rev 1 has MM=2, m=0, r=7, bbbb=80 or 02070050
 	2.0.1 alpha 3 has MM=2, m=0, r=10, bbbb=3*10, or 020A001E
 
 	Generally, an alpha/beta version number is encoded in the build
 	number. 2.0.1 has r=10 because r>0 was accidentally used by the
-	beta versions and the final.
+	2.0 beta versions and the final.
 
 	This variable is only available since 2.0.1 alpha 3 or 2.0 rev 1.
 	If you need it, set the action 8 newgrf version to 5 to prevent
