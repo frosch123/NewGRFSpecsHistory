@@ -1,47 +1,74 @@
-Cargo types:
-num	bitval	type
- 0	1	Passengers
- 1	2	Coal
- 2	4	Mail
- 3	8	Oil
- 4	10	Livestock
- 5	20	Goods
- 6	40	Grain/Wheat/Maize
- 7	80	Wood
- 8	100	Iron Ore
- 9	200	Steel
-10	400	Valuables/Gold/Diamonds
-11	800	Paper
-12	1000	Food
-13	2000	Fruit
-14	4000	Copper Ore
-15	8000	Water
-16	10000	Rubber
-17	20000	Sugar
-18	40000	Toys
-19	80000	Batteries
-20	100000	Candy (Sweets)
-21	200000	Toffee
-22	400000	Cola
-23	800000	Cotton Candy (Candyfloss)
-24	1000000	Bubbles
-25	2000000 Plastic
-26	4000000	Fizzy Drinks
-255	n/a	Shown in purchase list (no actual cargo ID available)
+How to define new graphics
+==========================
+
+The new graphics are controlled by newgrf.txt, which is simply a list
+of .grf files to include.  Each .grf file can then define graphics for
+one or more vehicles.
+
+In this document, you can find out how to define new sprites and
+control how they are displayed.
+
+Table of Contents
+
+1)  Introduction to Pseudo-Sprites
+2)  Definition of pseudo-sprites
+3)  Pseudo-sprite actions
+4)  General information and hints and tips
 
 
 
-Format of new ttdpatch.grf pseudo-sprite instructions:
-Each instruction looks like this in the .NFO file:
+1) Introduction to Pseudo-Sprites
+---------------------------------
 
-*   <length>  <action> <data>
+Pseudo-Sprites are special entries in the .nfo file that corresponds to
+a .grf file when decoded by GRFCodec.  They are the entries that do not
+have an actual picture in a PCX file, and they start with an asterisk,
+instead of the PCX file name.
 
-length is specified in decimal, command is one hex byte and
-data are a series of <length> bytes in hex
+This is what a regular sprite looks like:
+    7 SPRITES\newship.pcx 162 200 09 46 72 -6 -7
 
-action specifies what to do with the following data
+This is what a pseudo-sprite looks like:
+  125 * 17	 02 02 01 02 04 00 00 01 00 02 00 06 00 07 00 08 00
 
-  Action	What it does
+In each line, the first number is the sprite number.  It must increase
+in consecutive integer numbers, starting from 0 for the first entry.
+
+For regular sprites, the next part of the line is the PCX file name,
+and the dimensions and offsets of the sprite.
+
+For pseudo-sprites, the entry after the asterisk is the total length
+of the pseudo-sprite data, in bytes.  After it follows the actual data,
+also in individual bytes.  Note that the length must be given in decimal
+notation, but the data is given in hexadecimal notation.
+
+Pseudo-sprites exist in TTD's .grf files too, but their format is
+unknown.  In a .grf file used by TTDPatch, however, the format is
+described in the next section.  For example, you will find that the
+example pseudo-sprite above means to TTDPatch:
+	- this is the definition of a cargo ID for ships
+	- it defines cargo ID number 1
+	- there are two different sets of sprites for ships that are in motion
+	- there are four different sets for ships being loaded or unloaded
+	- after which follow the numbers of the sprite sets
+
+
+2)  Definition of pseudo-sprites
+--------------------------------
+
+Each pseudo-sprite that is read by TTDPatch has the following format:
+
+<sprite-num> *   <length>  <action> <data>
+
+	sprite-num	The consecutive number of the sprite (see above)
+	length		Total size of the pseudo-sprite, including the
+			action byte and all data bytes
+	action		Defines the action that this pseudo-sprite carries out
+
+
+The following actions can be specified:
+
+      Action	What it does
 	0	Change vehicle info (like TTD Alter)
 	1	Define new sprite block
 	2	Define new cargo ID: mapping of cargo type and load status to sprite
@@ -52,39 +79,96 @@ action specifies what to do with the following data
 	7	Skip following sprites if condition is true
 
 
-Specifics of the data for these actions:
+The format of the data of each action is different depending on the action,
+and is described below.
 
-Note, the descriptions of the parameters are organized in this manner:
+These descriptions of the parameters are organized in this manner:
+
 	Size  Name  Description
 
-The size can be B for a single byte, W for a two-byte word,
-D for a four-byte dword, S for a zero-terminated string, or
-V for a variable size.  Words and dwords are in little-endian
-byte order.  If variable size is specified, the actual size depends
-on other parameters and is explained in the description.
+The size can have the following values:
+	B	This parameter is a single byte
+	W	This parameter is a two-byte word, specified in little-endian
+		byte order, that is, low-byte first, followed by the high-byte
+	D	This parameter is a four-byte dword, again in little-endian
+		byte order, with the least significant byte first and the
+		most significant byte last.
+	S	This parameter is variable-length, zero terminated text string
+	V	This parameter has a variable length, which depends on one
+		of the previous parameters; it will be described there.
 
 
-First sprite:
+Each sprite in the .grf file is such a pseudo-sprite, except for the
+graphics sprites preceeded by actions 1 or 5.
 
-	The first sprite in each .grf file has a special format.
+The first (pseudo-)sprite has a special format.  It defines how many entries
+the .grf file contains in total.  TTDPatch needs to know that, because it
+needs to reserve memory for each sprite in the file.
 
-*   4  <num-entries>
+This is the format of the first sprite:
+
+	*   4  <num-entries>
 
 	D num-entries	The total number of sprites and pseudo-sprite
 			in this .grf file.  May be slightly larger than
 			the actual number, but must not be smaller.
-			Given as four bytes in little-endian format.
+
+If you give a number that's too large, you're wasting memory that may
+be needed for actual sprites, and if the number is too low, the last
+few sprites will have to be skipped, which may confuse TTDPatch.
+
+
+NOTE TO SELF:
+When making the next incompatible change to the .grf files, do this:
+- introduce another parameter in cargo ID, determining how sprites are
+  selected (just by load; by loading status; by uphill/downhill/flat;
+  by age; by random choice; etc...)
+- change loading sprites definition to be
+	<number1> <loadtypes1...> <number2> <loadtypes2...> <number3> <loadtypes3...>
+  so that chunks can easily be skipped
+- idea: make the cargo ID type be a bit mask, e.g.
+	bit 0: 0=loading/unloading 1=moving
+	bit 1: 0=above/below speed threshold (which needs another property)
+	bit 2: 0=...
+  then calculate the value of that byte, and it with the one in the
+  cargo type.  Finally, each chunk is <type> <number> <loadtypes>
+  and it is used it the type matches the anded value.
+- for random sprites:
+	a) make it part of the veh.ID -> cargo ID mapping
+	   e.g. num-vcid|0x80 indicates that there may be several cargo ids
+	   associated with each cargo type; then randomize one.
+	b) make it part of the cargo ID
+	   one byte could give a probability to skip to the next cargo ID
+	   instead, if a certain flag is set
+  when randomizing, consider vehicle number, and perhaps a new
+  field that indicates when the last loading began
+  maybe it should be specified in either a) or b) how the random appearance
+  is determined, i.e. another mask for veh.num/lastloadbegin/...
+- change order of size and param-num in action 6 (otherwise it's
+  not possible to use param-num 0 except in the first entry)
+- change numbers in action 5; they can start at 0 now
+- text definition needs to refer to the original veh.ID; not the
+  one from the newgrf.txt file.  Modify action 3 accordingly (store real
+  veh.ID), and patch the action 4 handler
+- or: store all languages in the .grf file
+- or: allow ttdpttxt.txt to overwrite any vehicle name, somehow
+- for train engines, flip the second engine using the ebx on stack in
+  getnewsprite
+
+
+3)  Pseudo-sprite actions
+-------------------------
 
 
 Action 0:	Define new vehicle properties.
+~~~~~~~~~
 
-	May appear anywhere in the .grf file.
+May appear anywhere in the .grf file.
 
-	Data is <veh-type> <num-props> <num-info> <offset>
-		then repeated numprops times: <property> <new-info>
+Data is <veh-type> <num-props> <num-info> <offset>
+then repeated numprops times: <property> <new-info>
 
-	B veh-type	0..3 to replace trains, road vehicles, ships or planes
-			(currently only ships work)
+	B veh-type	0, 1, 2 or 3 for trains, road vehicles, ships or planes
 	B num-props	how many properties to change
 	B num-info	how many vehicles to change
 	B offset	offset into each property (i.e. how many vehicles
@@ -94,72 +178,156 @@ Action 0:	Define new vehicle properties.
 
 	Properties common to all vehicle types
 	number	size	property
-	0	W	date of introduction (will have random amount added)
-	4	B	engine life in years
-	6	B	climates available (bit mask)
+	00	W	date of introduction (will have random amount added)
+	04	B	engine life in years
+	06	B	climates available (bit mask)
 
-	all of the above only apply to new games, or when using Cht: ReloadEngines
+All of the above only apply to new games, or when using Cht: ReloadEngines.
 
-	Note, engine life also determines how long this engine can be bought
-	after being introduced (without using persisentengines).
+Note, engine life also determines how long this engine can be bought
+after being introduced (without using persisentengines).
 
 
 	Properties for trains
-	-none at the moment-
+	08	B	AI special flag; 1 for dual-headed engines and those
+			with cargo capacity, 0 otherwise
+	09	W	Speed in mph*1.6 (0 for wagons)
+	0B	W	Power (0 for wagons)
+	0D	B	Running cost factor (0 for wagons)
+	0E	D	Running cost base (for engines either 4C30, 4C36
+			or 4C3C, 0 for wagons)
+	12	B	Sprite ID (FD for new graphics)
+	13	B	Dual-headed flag; 1 if dual-headed engine, 0 otherwise
+	14	B	Cargo capacity
+	15	B	Cargo type
+	16	B	Weight in tons
+	17	B	Cost factor
+	18	B	Not a property, but an action: sort the current train
+			vehicle before train vehicle with the specified number
+			Use this when converting waggons to engines or vice versa
+
 
 	Properties for road vehicles
-	-none at the moment-
+	08	B	Speed in mph*3.2
+	09	B	Running cost factor
+	0A	D	Running cost base
+	0E	B	Sprite ID (FF for new graphics)
+	0F	B	Capacity
+	10	B	Cargo type
+	11	B	Cost factor
 
-	Properties for aircraft
-	-none at the moment-
 
 	Properties for ships
-	number	size	property
-     8	B	sprites
-	9	B	refittable (0 no, 1 yes)
-	10	B	cost base
-	11	B	speed in mph*3.2
-	12	B	default cargo type
-	13	W	capacity
-	15	B	base maintenance cost
-	16	D	bit mask of cargo types available for refitting
+	08	B	Sprite
+	09	B	Refittable (0 no, 1 yes)
+	0A	B	Cost factor
+	0B	B	Speed in mph*3.2
+	0C	B	Default cargo type
+	0D	W	Capacity
+	0F	B	Running cost factor
+	10	D	Bit mask of cargo types available for refitting
+
+
+	Properties for aircraft
+	08	B	Sprite
+	09	B	Is helicopter? 2=no, 0=yes
+	0A	B	Is large? 1=no, 0=yes (=can't safely land on large airports)
+	0B	B	Cost factor
+	0C	W	Speed
+	0E	B	Running cost factor
+	0F	W	Passenger capacity
+	11	B	Mail capacity
+
+
+Note:
+	- Trains use FD for new sprite graphics, all other vehicle types
+	  can use either FD, FE or FF.
+	- Vehicle costs and running costs are all determined by a factor
+	  only, which is then multiplied with a base value that is the
+	  same for all vehicles of that type (except trains, where you
+	  have a choice of three base values)
+	- Don't use property numbers that aren't defined here
+
+You can define several new properties for many vehicles using a single
+action 0 entry.  For example, the following entry:
+
+* 180	00 02 0A 0B 00
+   00	6A 0B	9A 55	90 08	BC 5C	69 43	7B 44	30 4A	23 07	11 39	56 47	EC 3B
+   06	07	07	0F	0F	0F	06	03	0F	07	0F	07
+   08	FF	FF	04	FF	06	FF	FF	FF	FF	FF	FF
+   09	00	00	01	00	00	01	00	01	01	01	01
+   0A	9E	BE	60	FF	94	B4	AF	6E	A0	D2	AA
+   0F	96	82	5A	FF	BE	BE	B4	A5	A0	78	AA
+   0B	45	52	49	6C	E0	55	4D	45	4A	52	4A
+   0C	03	03	00	00	00	0C	04	05	06	05	07
+   0D	2C 01	C2 01	64 00	F4 01	64 00	18 01	68 01	BE 00	68 01	C2 01	68 01
+   10	08 00 00 00
+	08 00 00 00
+	05 00 00 00
+	01 00 00 00
+	01 00 00 00
+	00 30 20 04
+	10 00 00 00
+	F6 7F BF FF
+	42 41 00 00
+	20 30 20 04
+	80 0A 01 00
+
+sets all properties for all of the ships at once.  If you can, combine as
+many action 0 entries as possible, to save some memory that would otherwise
+be wasted.
 
 
 Action 1:	Define new vehicle sprite blocks.
+~~~~~~~~~
 
-	May appear anywhere in the .grf file.
+May appear anywhere in the .grf file.
 
-	Data is <veh-type> <num-sprites> <num-dirs>
+Data is <veh-type> <num-sprites> <num-dirs>
 
-	B veh-type	same as action 0 (currently only ships work)
-	B num-sprites	number of set of num-dirs sprites
+	B veh-type	same as action 0
+	B num-sprites	number of sets of num-dirs sprites
+	B num-dirs	how many different vehicle directions in each sprite set
 
-The following num-sprites * num-dirs sprites will be actual sprites,
-not pseudo-sprites
+The following num-sprites times num-dirs sprites will be actual sprites,
+not pseudo-sprites.  The first num-dirs sprites will be sprite set 0, the
+next num-dirs sprites will be sprite set 1, and so on up to sprite set
+number num-sprites-1.
 
 
 Action 2:	Define cargo IDs.
+~~~~~~~~~
 
-	May appear only *after* the sprite block (action 1) it corresponds
-	to, and not after any other sprite block.
+May appear only *after* the sprite block (action 1) it corresponds
+to, and not after any other sprite block.
 
-	Data is <veh-type> <cargo-id> <display-type> <data...> <num-loadtypes> <num-loadingtypes> <loadtypes...>
+Data is <veh-type> <cargo-id> <display-type> <data...> <num-loadtypes> <num-loadingtypes> <loadtypes...>
 
-	B veh-type	same as action 0 (currently only ships work)
+	B veh-type	see action 0
 	B cargo-id	ID of this particular cargo (w.r.t. what sprites to show)
-			Cargo IDs must be unique for each sprite block defined
-			by action 1, and are forgotten when the next action 1
-			is encountered.
-	B num-loadtypes	how many different states of load this set can display
-			this must not be zero, or division by zero will occur
-			these are only the number of loadtypes while in motion
+	B num-loadtypes	how many different states of load this set can display,
+			while the vehicle is in motion
 	B num-loadingtypes
-			same as num-loadtypes but shown while ship is loading/unloading
+			same as num-loadtypes but shown while vehicle is
+			either loading or unloading
 	B loadtypes...	sprite ids for each of the states of load; first for the
 			"in motion" load states and then the "loading/unloading"
 			load states
 
-Note
+Notes:
+
+A cargo ID defines a super-set of sprite sets that go together to display
+a certain cargo type, at various states of motion or loading.  For example,
+you might have one cargo ID for coal, one for iron ore and one for grain.
+Several cargo IDs can share sprites, for example the empty sprite might be
+the same for several cargo types.
+
+Cargo IDs must be unique for each sprite block defined by action 1,
+and are forgotten when the next action 1 is encountered.
+
+Both the num-loadtypes and num-loadingtypes must not be zero, or a division
+by zero may occur.
+
 If there is only one load type, it is shown for all loads
 If there are two load types, the first is shown below 50%, the other above 50%
 If there are three load types, they are shown above/below 33% and 66%
@@ -168,64 +336,73 @@ etc...
 
 
 Action 3:	Associate cargo IDs with vehicles.
+~~~~~~~~~
 
-	May appear only *after* all corresponding cargo IDs have been
-	defined by an action 2 entry.
+May appear only *after* all corresponding cargo IDs have been
+defined by an action 2 entry.
 
-	Data is <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-num> <cid>]... <def-cid>
+Data is <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-type> <cid>]... <def-cid>
 
-	B veh-type	same as action 0 (currently only ships work)
+	B veh-type	see action 0
 	B n-vid		how many vehicle IDs this definition applies to
 	B veh-id	the vehicle IDs (counted from the first of its class)
 	B num-vcid	number of vehicle-specific cargo IDs in this definition
-	B cargo-type	number of this cargo type (e.g. mail=2, wood=7)
+	B cargo-type	type of this cargo type (e.g. mail=2, wood=7, see below)
 	W cid		cargo ID for this type of cargo
-	W def-cid	is the default cargo ID, if the actual cargo type
-			doesn't match any of the previous cargos
-NOTE 1: Location of def-cid changed from before TTDPatch 1.9.1 alpha 5!
-NOTE 2: Cargo IDs are now WORD values here (I need two bytes)!
+	W def-cid	default cargo ID
 
+Notes:
 
-Note
-New sprites are used if the sprite number stored in the vehicle structure
-is equal to FF
-Then the vehicle's veh-id is looked up, and searched for its cargo
-The cargo-id that is found is then used to determine the load status,
-and the base sprite id to use
-Finally, the current direction is added to the base sprite id, and returned
+The default cargo ID is used when the current cargo type of the vehicles
+doesn't match any of those in the cargo-type list of this action.  If you
+specify a cargo ID for cargo-type FF, this is the ID that will show up in
+the vehicle purchase window, and in the announcement of new vehicles.
 
 
 Action 4:	Define new vehicle names.
+~~~~~~~~~
 
-	May appear anywhere in the .grf file.
+May appear anywhere in the .grf file.
 
-	Data is <veh-type> <num-veh> <offset> <data...>
+Data is <veh-type> <num-veh> <offset> <data...>
 
-	B veh-type	same as action 0 (currently only ships work)
+	B veh-type	see action 0
 	B num-veh	number of vehicles which are getting a new name
 	B offset	number of the first vehicle that gets a new name
 	S data		new names, each of them zero-terminated, after
 			which the next name begins.
 
+Notes:
+
+These names will always be in the same language, no matter what language
+version of TTD is running.  Therefore, they may be in the wrong language.
+
+Currently there is no way to define language-dependent strings in a .grf
+file.
+
 
 Action 5:	Define new non-vehicle sprite blocks.
+~~~~~~~~~
 
-	May appear anywhere in the .grf file.
+May appear anywhere in the .grf file.
 
-	Data is <graphics-type> <num-sprites> <other data...>
+Data is <graphics-type> <num-sprites> <other data...>
 
-	B graphics-type	Can have any of the following values:
-				4  Pre-signal graphics
-				5  Overhead wires and pylons for electrified railways
+	B graphics-type	What set of graphics the sprites define.
 	B num-sprites	How many sprites are in this set?
 	B other data	Graphics type specific data.  Not defined yet.
 
+Possible values for graphics-type:
+	4  Pre-signal graphics (48 sprites)
+	5  Overhead wires and pylons for electrified railways (xx sprites)
+
 
 Action 6:	Apply parameter to following pseudo-sprite or sprite.
+~~~~~~~~~
 
-	May appear anywhere in the .grf file.
+May appear anywhere in the .grf file.
 
-	Data is <param-num> <param-size> <offset> ... <00>
+Data is <param-num> <param-size> <offset> ... <00>
 
 	B param-num	Number of parameter to substitute (First = "zero")
 			Ignored if that parameter was not specified in newgrf.txt
@@ -236,16 +413,20 @@ Action 6:	Apply parameter to following pseudo-sprite or sprite.
 	B offset	Offset into data from beginning of next sprite
 			to place where parameter is to be stored
 
-	The triplet of number, size and offset can be repeated as often
-	as necessary, for any kind of values.  The final byte must be
-	a literal "00" to indicate the end of the list.
+Notes:
+
+The triplet of number, size and offset can be repeated as often
+as necessary, for any kind of values.  The final byte must be
+a literal "00" to indicate the end of the list, as TTDPatch cannot
+easily determine the length of a pseudo-sprite.
 
 
 Action 7:	Skip next n sprites if condition is true.
+~~~~~~~~~
 
-	May appear anywhere in the .grf file.
+May appear anywhere in the .grf file.
 
-	Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
+Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 
 	B param-num	See action 6
 	B param-size	See action 6
@@ -262,24 +443,109 @@ Action 7:	Skip next n sprites if condition is true.
 			as the param-size specifies.
 	B num-sprites	How many sprites to skip if the condition is true
 
+Notes:
+
+Take care that the number of sprites to skip does not end in the middle
+of a non-pseudo-sprite block, or TTDPatch will attempt to interpret these
+regular sprites as pseudo-sprites, and will most likely crash.
 
 
-General strategy for implementing new graphics in the .grf file:
-* Don't forget that the first sprite is special
-* Action 0 (new properties) can appear anywhere in the .grf file,
-	or nowhere if the sprite numbers are set to FF somewhere else.
-* Start a block of new graphics with an action 1 (sprite block) entry,
-	followed by the actual sprite data.
-* After action 1, give action 2 (cargo ID) entries for each different
-	vehicle and cargo type combination
-* After all actions 2, use action 3 (veh ID to cargo ID maps) to specify
-	what cargo IDs are to be shown for which vehicle and which cargo types
-* There may be *no* action 1 between the final action 3 for that sprite
-	block
+4)  General information and hints and tips
+------------------------------------------
 
-Remember that:
-- cargo types are what the vehicle will actually transport, e.g. passengers,
-	coal, iron ore etc.
-- cargo IDs are numbers unique to each sprite block, one for each different
-	cargo type that each new vehicle can transport
+a) The following cargo types are defined by TTDPatch:
 
+Num1	Bitval	Num2	Type
+ 00	1	 00	Passengers
+ 01	2	 01	Coal
+ 02	4	 02	Mail
+ 03	8	 03	Oil
+ 04	10	 04	Livestock
+ 05	20	 05	Goods
+ 06	40	 06	Grain/Wheat/Maize
+ 07	80	 07	Wood
+ 08	100	 08	Iron Ore
+ 09	200	 09	Steel
+ 0A	400	 0A	Valuables/Gold/Diamonds
+ 0B	800	 09	Paper
+ 0C	1000	 0B	Food
+ 0D	2000	 04	Fruit
+ 0E	4000	 08	Copper Ore
+ 0F	8000	 09	Water
+ 10	10000	 01	Rubber
+ 11	20000	 01	Sugar
+ 12	40000	 03	Toys
+ 13	80000	 04	Batteries
+ 14	100000	 05	Candy (Sweets)
+ 15	200000	 06	Toffee
+ 16	400000	 07	Cola
+ 17	800000	 08	Cotton Candy (Candyfloss)
+ 18	1000000	 09	Bubbles
+ 19	2000000  0A	Plastic
+ 1A	4000000	 0B	Fizzy Drinks
+ FF	n/a	 n/a	Shown in purchase list
+
+
+Num1 is what you use in action 3.
+Bitval is (1<<Num1), and it is what you add up to make the bit mask for action 0.
+Num2 is what you use as cargo type in action 0.
+
+Note that using a cargo type of FF in action 3 allows you to decide which
+cargo type to show in the purchase list
+
+b) General strategy for implementing new graphics in the .grf file:
+
+1) First sprite is special, defining the total number of entries in the .grf
+   file
+2) Then define one or several action 0 entries, that (possibly among other
+   things) set the vehicle sprite IDs to FD (trains) or FF (all other vehicle
+   types).  Only vehicles with the sprite IDs will be using the new sprites.
+3) Start a block of new graphics with an action 1 (sprite block) entry,
+   followed by the actual sprite data.  Ideally, you put the graphics of all
+   vehicles together in this one sprite block, taking note of what sets of
+   sprites have what number (as determined by their position in the block).
+4) After action 1, give action 2 (cargo ID) entries for each different
+   combination of vehicle and cargo type.  The cargo IDs should start at zero
+   and be numbered consecutively.
+5) After all action 2 entries, use action 3 (veh ID to cargo ID maps) to
+   specify what cargo IDs are to be shown for which vehicle and which cargo
+   types.
+
+Note that there may be *no* action 1 between the final action 3 for that
+sprite block.  The order must always be
+	Action 1
+	(Sprite block)
+	Action 2 (possibly several)
+	Action 3 (possibly several)
+After that, you can have a new action 1 and another sprite block, with its
+own action 2 and action 3 entries in the above order.
+
+c) Dealing with the sprite numbers and pseudo-sprite blocks
+
+It can be quite a chore to make sure that the sprite numbers increase
+by one, and that you have the correct length for the pseudo-sprite blocks.
+Currently, GRFCodec has only limited parsing capabilities, so you need to
+make sure that they are indeed correct.
+
+One help in this task is a Perl script called renum.pl, which you can find
+in this directory.  If you haven't heard of Perl before, it's a powerful
+programming language that you can get for free.  For example, you can
+install it with the Cygwin packages (www.cygwin.com), or from activestate.com
+and perl.com.
+
+If you have written a .nfo file, but it doesn't have the right numbers for
+the sprites or the lengths, run the renum.pl script like this:
+
+perl renum.pl < your.nfo > yournew.nfo
+
+It will take the your.nfo (substitute your actual filename), and write
+yournew.nfo with correct sprite numbers and pseudo-sprite lengths.
+
+Note that the format of the .nfo needs to be correct for this to work
+properly; in particular, the sprite numbers and pseudo-sprite lengths must
+already be *there* (as dummy numbers), but they need not be correct.
+
+d) Final words
+
+Now, after reading all this, go back to section 1, and see if you can
+understand how that pseudo-sprite works.  Then all should be clear!
