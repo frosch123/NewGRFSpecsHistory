@@ -389,31 +389,27 @@ Station IDs are unique within each grf file, however, in total each game can
 (currently) only have 255 station IDs for all active grf files.
 
 The only property you *must* set for each station ID is 08, anything else
-can be left at the default.
-
-The other properties (i.e. everything except 08) are currently not working
-and may in fact change for the next version.  Don't use them yet (you don't
-know the property number anyway...), but give feedback on whether they're
-useful or not :)
+can be left at the default.  Property 08 *must* be the first property set for
+each station ID, because it's what defines the station ID internally.  Before
+setting property 08, the station ID is strictly undefined and invalid.
 
 	Properties for stations
 	08	D	Class ID, see below
 	09	V	Sprite layout, see below
 	0A	B	Copy sprite layout, copies sprite layout from stationid
 			given by the argument to the stationid given by the offset
-	0C	W	Bit mask of disabled platform lengths (bits 0..14)
-	0D	W	Bit mask of disabled numbers of platforms (bits 0..14)
-	??	B	Maximum platform length supported (1)
-	??	B	Maximum number of platforms supported (1)
+	0B	B	Callback flags
+			Bit 0	use callback to decide whether to make station
+				available in construction menu
+	0C	B	Bit mask of disabled numbers of platforms (bits 0..6, 7),
+			bit 7 applies for all lengths above 7 (i.e. "+" button)
+			at least one of bits 0..3 must be set
+	0D	B	Bit mask of disabled platform lengths (bits 0..6, 7),
+			bit 7 applies for all lengths above 7 (i.e. "+" button)
+			at least one of bits 0..4 must be set
+	0E	V	Define custom layout, see below
+	0F	B	Copy custom layout from stationid given by argument
 	??	B	Bit mask of track systems available (bits 0..2)
-	??	B	Type of station: 00=regular, 01=waypoint (won't accept cargo), ...
-	??	B	Layout type, 00=TTD default, FF=custom layout
-	??	V	Define custom layout
-
-Footnotes:
-	(1) By default, any number and length are available; as many as are
-	    currently supported for regular TTD stations.  At the moment, this
-	    means up to 15x15, though only 14x15 or 15x14 can actually be built.
 
 Class ID:
 
@@ -455,12 +451,16 @@ The data is specified as data for all eight tiles in this way:
 
 	<data1> <data2> ... <data8>
 
-The content of each of the eight data sets is:
+The content of each of the eight data sets is either a new sprite layout:
+
 	D groundsprite	the sprite to draw for the rails; this can only be
 			a TTD sprite and can't be replaced by new sprites
 	V spritedata	the data for station sprites, see below; each has
 			a size of 10 bytes, and there may be several
 	B 80		a literal 80 ends the list of sprites for this tile
+
+or, alternatively, the instruction to use TTD's layout by using four zero
+bytes 00 00 00 00 instead of the groundsprite bytes.
 
 One can draw two types of sprites.  One type is one that establishes a new
 3D bounding box for use by the sprite sorter.  The other type shares the 3D
@@ -498,7 +498,6 @@ i.e. reversed byte order):
 			of the sprite are disregarded entirely); not supported
 			in station construction window display
 
-
 Note that the coordinates here are 3D coordinates with x running from
 top-right to bottom-left and y running from top-left to bottom-right.  This
 is different to and independent from the x/y offsets used in the actual .NFO
@@ -514,6 +513,33 @@ will get drawn from back to front, in the order which the sprite sorter
 determines as correct, from their bounding boxes.  The only exception is
 sprites sharing the same bounding box, which will always be drawn in the given
 order.
+
+Custom layout:
+
+This allows choosing which tile type is built at which tile of a newly built
+station.  There are four different types, which TTD normally defines as
+
+	00 = plain platform
+	02 = platform with building
+	04 = platform with roof, left side
+	06 = platform with roof, right side
+
+These numbers are used for stations in NE-SW direction, or these numbers
+plus one for stations in the NW-SE direction.  To define a custom layout,
+use this format:
+
+	B length	length of platforms for this layout
+	B number	number of platforms for this layout
+	V tiles		length*number bytes of tile types, one platform after
+			another, only 00, 02, 04 or 06 are allowed as values
+
+Repeat this as often as necessary to define the layouts for all supported
+combinations of length and number.  End the definitions with a 00 00 (zero
+length and zero number).  Any combinations that are not defined will be
+built using TTD's default layout.
+
+Note that it may be easier to draw different sprite sets using a variational
+action 2 based on station variable 40, rather than redefining the layout.
 
 
 Action 1:	Define new vehicle sprite blocks.
@@ -770,6 +796,17 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			below matches; must be specified even if the ranges
 			cover all possible values
 
+Callback IDs stored in variable 0C:
+	ID	class		usage
+	10	trains		checking whether vehicle should be powered
+				(for steam/smoke/spark production and added
+				wagon power/weight)
+	11	trains		checking wagon length when leaving depot
+	12	all vehicles	load amount callback (prop 07)
+	13	stations	checking whether station should be available
+				in construction menu (non-zero return) or
+				not (if callback returns 0)
+
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
 are computed on-the-fly, and aren't actually stored anywhere in memory.
@@ -795,25 +832,17 @@ Vehicle properties for the variable:
 	    Also this is only valid for the first engine, not wagons or
 	    additional engines.
 
-	0C callback IDs
-		ID	class	usage
-		10	trains	checking whether vehicle should be powered
-				(for steam/smoke/spark production and added
-				wagon power/weight)
-		11	trains	checking wagon length when leaving depot
-		12	all	load amount callback (prop 07)
-
 Station properties:
-	40+x	none defined at the moment
+	40	returns NNLLCCPP, where NN is the number of platforms,
+		LL is their length, CC is the platform number currently being
+		drawn, and PP is the position along this platform.  CC and PP
+		start counting from zero at the northern most corner
 
-	80+x	x is the offset into the station structure minus 6, see
+	80+x	x is the offset into the station structure minus 10h, see
 		struc station in ttdprot.ah, for example
-		10	number and length of train platforms
-		7A	facilities available
-
-	0C callback IDs
-		none defined at the moment
-
+		00	number and length of train platforms
+		70	facilities available
+		7A	date station was built
 
 Town properties:
 	40+x	none defined at the moment
@@ -823,9 +852,6 @@ Town properties:
 		02	population
 		14	5 WORD values of the town zone radii
 		36	number of buildings
-
-	0C callback IDs
-		none defined at the moment
 
 
 When displaying a vehicle in the purchase list, the game will show
@@ -1005,6 +1031,7 @@ For a full list of all text IDs, read A. Skrobov's textids.zip in the TTDPatch
 source code page.
 
 Special TTDPatch text IDs:
+	C0xx	Station class name
 	C5xx	New station names
 		Changes the text "number of platforms" into the given text
 		when the station with this ID from the current set is
