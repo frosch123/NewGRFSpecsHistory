@@ -157,6 +157,8 @@ When making the next incompatible change to the .grf files, do this:
 - or: allow ttdpttxt.txt to overwrite any vehicle name, somehow
 - for train engines, flip the second engine using the ebx on stack in
   getnewsprite
+- instead of using suffix "w" for windows grf files, use directory newgrfw
+  for windows and newgrf for dos
 
 
 3)  Pseudo-sprite actions
@@ -192,8 +194,7 @@ after being introduced (without using persisentengines).
 
 
 	Properties for trains
-	08	B	AI special flag; 1 for dual-headed engines and those
-			with cargo capacity, 0 otherwise
+	08	B	AI special flag (unused when new train properties are enabled)
 	09	W	Speed in mph*1.6 (0 for wagons)
 	0B	W	Power (0 for wagons)
 	0D	B	Running cost factor (0 for wagons)
@@ -205,10 +206,12 @@ after being introduced (without using persisentengines).
 	15	B	Cargo type
 	16	B	Weight in tons
 	17	B	Cost factor
-	18	B	Steam/smoke/sparks type and sound effect for new graphics;
+	18	B	Engine rank for the AI
+			(AI selects the highest-rank engine of those it can buy)
+	19	B	Steam/smoke/sparks type and sound effect for new graphics;
 			00..07=steam, 08..27=diesel, 28..31=electric,
-			32..38=monorail, 39..FF=maglev; default if unset is steam
-	19	B	Not a property, but an action: sort the current train
+			32..37=monorail, 38..FF=maglev; default if unset is steam
+	1A	B	Not a property, but an action: sort the current train
 			vehicle before train vehicle with the specified number
 			Use this when converting waggons to engines or vice versa
 
@@ -239,7 +242,7 @@ after being introduced (without using persisentengines).
 	Properties for aircraft
 	08	B	Sprite
 	09	B	Is helicopter? 2=no, 0=yes
-	0A	B	Is large? 0=no, 1=yes (=can't safely land on large airports)
+	0A	B	Is large? 0=no, 1=yes (=can't safely land on small airports)
 	0B	B	Cost factor
 	0C	W	Speed
 	0E	B	Running cost factor
