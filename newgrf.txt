@@ -178,7 +178,8 @@ using persisentengines).
 			vehicle before train vehicle with the specified number
 			Use this when converting waggons to engines or vice versa
 	21	B	Make vehicle shorter by this amount (e.g. for tenders)
-
+			00=not shorter, 01=shorter by 12.5%, up to 07=shorter by 87.5%
+			Does not work for the first vehicle in a consist (i.e. the engine)
 
 
 	Properties for road vehicles
@@ -218,6 +219,8 @@ using persisentengines).
 	0E	B	Running cost factor
 	0F	W	Passenger capacity
 	11	B	Mail capacity
+	12	B	Sound effect (not for helicopter); 6=prop 1, 7=jet 1,
+			3b=supersonic, 3d=jet 2, 45=prop 2, 46=jet 3
 
 
 Note:
@@ -787,12 +790,10 @@ Every .grf file is processed in two stages.  The first stage, initialization,
 is run only once.  In this stage, TTDPatch records the GRF IDs, and resolves
 all cargo IDs and sprite IDs.
 
-During initialization, actions 0, 3, 4 and 5 are ignored.  Action 6 is
-carried out *only* during initialization.  Action 7 is valid for both
-stages, however, instructions to skip the rest of the .grf file are ignored
-during initialization.  This is so as to initialize .grf files even when
-they contain action 7 entries that would skip the rest of the file and
-leave it uninitialized.
+During initialization, actions 0, 3, 4, 5 and 7 are ignored.  Action 6 is
+carried out *only* during initialization.  Action 7 is ignored because
+otherwise the sprite IDs and cargo IDs that are skipped won't be resolved.
+Action 8 has the GRF ID recorded so that it can be looked up later.
 
 A .grf file is activated only if it was active when the game was started.  If
 a game is loaded, only its active .grfs will be reactivated, unless
