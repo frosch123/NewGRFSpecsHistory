@@ -155,7 +155,10 @@ All of the above only apply to new games, or when using Cht: ReloadEngines.
 
 The date is specified as number of days since 1920.  It will have a random
 number from 0 to 511 days added to it at the start of every new game, or after
-using "Cht: ResetVehicles".
+using "Cht: ResetVehicles".  Note that TTD stops updating vehicle type data
+after the game ends in 2050, so all dates of introduction should be no later
+than in 2044, to ensure that all vehicle types can be introduced and reach
+their maximum reliability.
 
 The reliability decay speed is used when a new vehicle is bought, and
 specifies how quickly the reliability decays after servicing.  The initial
