@@ -818,6 +818,11 @@ successfully.  This means that you should control activation by placing
 an action 7 before the action 8, to skip a .grf file for the wrong
 climate, for example.
 
+The GRF ID "FFFFFFFF" is reserved for graphics files that are controlled
+by other switches, for example pre-signals, the catenary system or track
+foundations on slopes.  These will be loaded and activated whenever they
+are in newgrf(w).cfg, disregarding whether they were active before or not.
+
 The description should be a short zero-terminated string that describes
 the contents of the .grf file.  It might for example be used by other
 programs that allow selecting .grf files for newgrf.cfg.
