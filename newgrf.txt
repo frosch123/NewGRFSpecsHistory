@@ -1650,6 +1650,7 @@ IDs	numsprites	Description
 01	18 (24)		Locks
 02	0C (12)		Dikes
 03	01 (1)		Icons
+04	04 (4)		Flat docks
 
 Note that canals and town buildings do not have any cargo, so you must use
 num-cid=00 and only specify the default action 2 ID.
