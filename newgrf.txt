@@ -296,6 +296,8 @@ Data is <veh-type> <num-sprites> <num-dirs>
 	B veh-type	same as action 0
 	B num-sprites	number of sets of num-dirs sprites
 	B num-dirs	how many different vehicle directions in each sprite set
+			Set num-dirs=8, unless your sprites are symmetric.
+			In that case, use num-dirs=4.
 
 The following num-sprites times num-dirs sprites will be actual sprites,
 not pseudo-sprites.  The first num-dirs sprites will be sprite set 0, the
