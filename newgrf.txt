@@ -77,6 +77,7 @@ The following actions can be specified:
 	5	New graphics such as pre-signals and overhead wires
 	6	Apply newgrf.txt parameter to following sprite data
 	7	Skip following sprites if condition is true
+	8	Define the GRF ID, description and copyright info
 
 
 The format of the data of each action is different depending on the action,
@@ -176,6 +177,8 @@ using persisentengines).
 	1A	B	Not a property, but an action: sort the current train
 			vehicle before train vehicle with the specified number
 			Use this when converting waggons to engines or vice versa
+	21	B	Make vehicle shorter by this amount (e.g. for tenders)
+
 
 
 	Properties for road vehicles
@@ -272,7 +275,7 @@ Data is <veh-type> <num-sprites> <num-dirs>
 The following num-sprites times num-dirs sprites will be actual sprites,
 not pseudo-sprites.  The first num-dirs sprites will be sprite set 0, the
 next num-dirs sprites will be sprite set 1, and so on up to sprite set
-number num-sprites-1.
+number num-sprites - 1.
 
 
 Action 2:	Define cargo IDs or randomized/variational cargo ID lists
@@ -299,12 +302,9 @@ Data is <veh-type> <cargo-id> <num-loadtypes> <num-loadingtypes> <loadtypes...>
 
 A cargo ID defines a super-set of sprite sets that go together to display
 a certain cargo type, at various states of motion or loading.  For example,
-you might have one cargo ID for coal, one for iron ore and one for grain.
-Several cargo IDs can share sprites, for example the empty sprite might be
-the same for several cargo types.
-
-Cargo IDs must be unique for each sprite block defined by action 1,
-and are forgotten when the next action 1 is encountered.
+for a certain vehicle, you might have one cargo ID for coal, one for iron
+ore and one for grain.  Several cargo IDs can share sprites, for example
+the empty sprite might be the same for several cargo types.
 
 Both the num-loadtypes and num-loadingtypes must not be zero, or a division
 by zero may occur.
@@ -343,6 +343,8 @@ Data is <veh-type> <cargo-id> <80> <random-type> <nrand> <randbit> <cargo-IDs...
 				by default changes if *any* triggers are met
 			(currently no other bits are defined)
 	B randbit	number of lowest bit to consider for the random number
+			should be zero unless this random definition references
+			another randomized cargo ID list
 	B nrand		how many different randomized cargo IDs to show
 			must be a power of two (e.g. 2, 4, 8, 16....)
 	W cargo-IDs	list of nrand different cargo-IDs that are chosen randomly
@@ -375,7 +377,8 @@ For num-loadtypes 81:	list of variational but deterministic cargo IDs
 Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
 		<nvar> <cid-definitions...> <default-cid>
 
-	Each cid-definition is in the form <low-range> <high-range> <cargo-ID>
+	Each cid-definition (except for the default-cid) is in the
+	form <low-range> <high-range> <cargo-ID>
 
 	B veh-type	same as above
 	B cargo-id	same as above, can't share the same number with
@@ -425,7 +428,7 @@ Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
 	age is from 5472 to 7328 days, and ID 2 otherwise.
 
 
-	[1] Note that the units of the speed depends on the vehicle type
+	[1] Note that the unit of the speed depends on the vehicle type
 	    For trains: in mph/1.6
 	    For road vehicles and ships: in mph/3.2
 	    For planes: in mph
@@ -436,7 +439,7 @@ Action 3:	Associate cargo IDs with vehicles
 ~~~~~~~~~
 
 May appear only *after* all corresponding cargo IDs have been
-defined by an action 2 entry.
+defined by an action 2 entry in this .grf file.
 
 Data is <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-type> <cid>]... <def-cid>
 
@@ -451,9 +454,9 @@ Data is <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-type> <cid>]... <def-c
 
 
 If n-vid has bit 7 set, this action 3 must immediately follow an action 3.
-The engines defined by the first action 3 then will have an override for
-wagon sprites.  This means that you can specify here a number of
-wagon that will have different graphics when attached to these engines.
+The engines defined by the first action 3 will then have an override for
+wagon sprites.  This means that you can specify here a number of wagons
+that will have different graphics when attached to these engines.
 
 These wagons will use the cargo IDs in the second action 3 whenever they are
 attached to one of the engine(s) defined in the first action 3.  Additional
@@ -583,7 +586,9 @@ Notes:
 
 Take care that the number of sprites to skip does not end in the middle
 of a non-pseudo-sprite block, or TTDPatch will attempt to interpret these
-regular sprites as pseudo-sprites, and will most likely crash.
+regular sprites as pseudo-sprites, and will most likely crash.  Also don't
+skip beyond the end of a .grf file.  If you need to skip the rest of a .grf
+file, just use num-sprites = 0.
 
 
 Action 8:	Define GRF ID
@@ -600,7 +605,7 @@ Data is <version> <grf-id> <<description> <copyright>
 	S copyright	copyright string describing the author and copyright
 
 This action is currently optional, but will be mandatory starting from the
-first beta version.
+first beta version at the latest.
 
 The version must match or be compatible with the newgrf version of the
 intended TTDPatch version, see below.
@@ -642,7 +647,7 @@ Optionally you can follow with your contact info and any other
 information you want to include in the .grf file.
 
 *Note, the ID checking and grf (de)activation does not work yet as
-of 1.9.1 alpha 28*
+of 1.9.1 alpha 31*
 
 Newgrf version table
 
@@ -694,34 +699,43 @@ Bitval is (1<<Num1), and it is what you add up to make the bit mask for action 0
 Num2 is what you use as cargo type in action 0.
 
 Note that using a cargo type of FF in action 3 allows you to decide which
-cargo type to show in the purchase list
+cargo ID to show in the purchase list.
+
+
 
 b) General strategy for implementing new graphics in the .grf file:
 
 1) First sprite is special, defining the total number of entries in the .grf
    file
-2) Then define one or several action 0 entries, that (possibly among other
+2) Start with one or more action 7 entries that decide whether or not to
+   load these graphics, for example based on the current climate.
+3) After the action 7 entries, define your GRF ID with action 8.
+4) Then define one or several action 0 entries, that (possibly among other
    things) set the vehicle sprite IDs to FD (trains) or FF (all other vehicle
    types).  Only vehicles with the sprite IDs will be using the new sprites.
-3) Start a block of new graphics with an action 1 (sprite block) entry,
+5) Start a block of new graphics with an action 1 (sprite block) entry,
    followed by the actual sprite data.  Ideally, you put the graphics of all
    vehicles together in this one sprite block, taking note of what sets of
    sprites have what number (as determined by their position in the block).
-4) After action 1, give action 2 (cargo ID) entries for each different
+6) After action 1, give action 2 (cargo ID) entries for each different
    combination of vehicle and cargo type.  The cargo IDs should start at zero
    and be numbered consecutively.
-5) After all action 2 entries, use action 3 (veh ID to cargo ID maps) to
+7) After all action 2 entries, use action 3 (veh ID to cargo ID maps) to
    specify what cargo IDs are to be shown for which vehicle and which cargo
    types.
 
 Note that there may be *no* action 1 between the final action 3 for that
 sprite block.  The order must always be
+
 	Action 1
 	(Sprite block)
 	Action 2 (possibly several)
 	Action 3 (possibly several)
+
 After that, you can have a new action 1 and another sprite block, with its
 own action 2 and action 3 entries in the above order.
+
+
 
 c) Dealing with the sprite numbers and pseudo-sprite blocks
 
@@ -748,6 +762,8 @@ Note that the format of the .nfo needs to be correct for this to work
 properly; in particular, the sprite numbers and pseudo-sprite lengths must
 already be *there* (as dummy numbers), but they need not be correct.
 
+
+
 d) How to only load your graphics in some circumstances
 
 For example, you only want your graphics to be active in the right climate,
@@ -763,6 +779,8 @@ that defines your GRF ID.
 This way, the .grf file is considered active or inactive in the right
 circumstances.
 
+
+
 e) The two stages of loading a .grf file
 
 Every .grf file is processed in two stages.  The first stage, initialization,
@@ -771,18 +789,22 @@ all cargo IDs and sprite IDs.
 
 During initialization, actions 0, 3, 4 and 5 are ignored.  Action 6 is
 carried out *only* during initialization.  Action 7 is valid for both
-stages, however, instructions to skip the rest of the .grf file are ignored.
-This is so as to initialize .grf files even when they contain action 7
-entries that would skip the rest of the file and leave it uninitialized.
+stages, however, instructions to skip the rest of the .grf file are ignored
+during initialization.  This is so as to initialize .grf files even when
+they contain action 7 entries that would skip the rest of the file and
+leave it uninitialized.
 
 A .grf file is activated only if it was active when the game was started.  If
 a game is loaded, only its active .grfs will be reactivated, unless
-"alwaysloadnewgrfs" is on.  A .grf file is considered active if its action 8
-has been processed, i.e. its action 8 hasn't been skipped using an action 7.
+"loadallgraphics on" is used.  A .grf file is considered active if its
+action 8 has been processed, i.e. its action 8 hasn't been skipped using
+an action 7.
 
 During activation, only actions 0, 3, 4, 5, 7 and 8 are carried out.  All
 others are ignored, because they only need to be processed once at
 initialization.
+
+
 
 f) Final words
 
