@@ -85,7 +85,7 @@ Action 0:
      8	B	sprites
 	9	B	refittable (0 no, 1 yes)
 	10	B	cost base
-	11	B	speed in mph*1.6
+	11	B	speed in mph*3.2
 	12	B	default cargo type
 	13	W	capacity
 	15	B	base maintenance cost
