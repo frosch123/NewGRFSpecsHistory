@@ -1112,12 +1112,12 @@ Action 8:	Define GRF ID
 Must be the first pseudo-sprite of a .grf file except for one or more
 action 7 entries that may (and probably should) come before it.
 
-Data is <08> <version> <grf-id> <description> <copyright>
+Data is <08> <version> <grf-id> <name> <info>
 
 	B version	newgrf version, currently 06
 	4*B grf-id	globally unique ID of this .grf file
-	S description	description of the contents of this .grf file
-	S copyright	copyright string describing the author and copyright
+	S name		name of this .grf set
+	S info		string describing the set, and e.g. author and copyright
 
 This action is mandatory, grf files missing this action will not load, and
 will show a "wrong version" error message.
@@ -1156,21 +1156,16 @@ foundations on slopes.  These will be loaded and activated whenever they
 are in newgrf(w).cfg and their corresponding switch is on, regardless
 of whether they were active before or not.
 
-The description should be a short zero-terminated string that describes
-the contents of the .grf file.  It might for example be displayed by other
-programs that allow selecting .grf files for newgrf.cfg.
+The name should be a short zero-terminated string that describes
+the contents of the .grf file.  It is used for the list of items in the
+GRF status window.
 
-The zero-terminated copyright string has no specified format.  It can
+The zero-terminated info string has no specified format.  It can
 contain anything you want to, but if you want to be recognized as the
 author of the .grf file, it should be something like
 "Copyright (C) 2003 by Foobar Z. Boozle.  All rights reserved."
 Optionally you can follow with your contact info and any other
 information you want to include in the .grf file.
-
-Both description and copyright strings are currently ignored by TTDPatch,
-they are at the moment only useful for displaying in GRF Manager.  However,
-in the future, TTDPatch may have an in-game window displaying the currently
-active graphics, in which case the description would be displayed there.
 
 Newgrf version table
 
@@ -1227,7 +1222,7 @@ Action B:	Generate error or warning message
 This action allows a .grf file to generate an error or warning message, e.g.
 to indicate that it needs a more recent version of the patch.
 
-Data is <0B> <message-type> <language-id> <message-id> [<message...> 00] [<data...>] 00 [<parnum>]
+Data is <0B> <severity> <language-id> <message-id> [<message...> 00] [<data...>] 00 [<parnum>]
 
 	B severity	00: notice, contine loading grf file
 			01: warning, continue loading grf file
