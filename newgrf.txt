@@ -144,6 +144,9 @@ When making the next incompatible change to the .grf files, do this:
   field that indicates when the last loading began
   maybe it should be specified in either a) or b) how the random appearance
   is determined, i.e. another mask for veh.num/lastloadbegin/...
+- allow distinction between "regular" dual head and "forced" dual-head,
+  so as to allow tenders perhaps?  These of course shouldn't count for
+  multi-head speeds and powers...  maybe add them automatically somehow?
 - change order of size and param-num in action 6 (otherwise it's
   not possible to use param-num 0 except in the first entry)
 - change numbers in action 5; they can start at 0 now
@@ -202,9 +205,9 @@ after being introduced (without using persisentengines).
 	15	B	Cargo type
 	16	B	Weight in tons
 	17	B	Cost factor
-	18	B	Steam/smoke/sparks type for new graphics;
-			00..07=steam, 08..27=diesel smoke, 28..31=sparks,
-			32..FF=nothing; default if unset is steam
+	18	B	Steam/smoke/sparks type and sound effect for new graphics;
+			00..07=steam, 08..27=diesel, 28..31=electric,
+			32..38=monorail, 39..FF=maglev; default if unset is steam
 	19	B	Not a property, but an action: sort the current train
 			vehicle before train vehicle with the specified number
 			Use this when converting waggons to engines or vice versa
