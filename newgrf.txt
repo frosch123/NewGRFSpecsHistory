@@ -106,13 +106,17 @@ not pseudo-sprites
 
 
 Action 2:
-	Data is <veh-type> <cargo-id> <num-loadtypes> <loadtypes...>
+	Data is <veh-type> <cargo-id> <num-loadtypes> <num-loadingtypes> <loadtypes...>
 
 	veh-type        same as action 0 (currently only ships work)
 	cargo-id	id of this particular cargo (w.r.t what sprites to show)
 	num-loadtypes	how many different states of load this set can display
 			this must not be zero, or division by zero will occur
-	loadtypes...	sprite ids for each of the states of load
+			these are only the number of loadtypes while in motion
+	num-loadingtypes  same as num-loadtypes but shown while ship is loading/unloading
+	loadtypes...	sprite ids for each of the states of load; first for the
+			"in motion" load states and then the "loading/unloading"
+			load states
 
 Note
 If there is only one load type, it is shown for all loads
