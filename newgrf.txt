@@ -497,6 +497,7 @@ all station IDs must have their class set in order, starting from ID 00.
 				(var. 10 is 1 for ground sprites, 0 otherwise)
 			Bit 1	divide cargo amount by station size in action 2
 				for better graphical display of cargo amount
+	14	B	Bit mask of tile types (0..7) for which *not* to draw overhead wires
 
 Class ID:
 
