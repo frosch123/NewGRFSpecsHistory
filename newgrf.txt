@@ -184,8 +184,13 @@ using persisentengines).
 	0F	B	Capacity
 	10	B	Cargo type
 	11	B	Cost factor
-	12	B	Power in 10 hp (only used with rvpower)
-	13	B	Weight in 1/4 tons (only used with rvpower)
+	12	B	Sound effect: 17/19/1A for regular, 3C/3E for toyland
+	13	B	Power in 10 hp (only used with rvpower)
+	14	B	Weight in 1/4 tons (only used with rvpower)
+	15	B	Speed in mph*0.8 (up to 511 km/h, only used with rvpower;
+			uses prop.08 if unset; always set prop. 08 too)
+	16	D	Bit mask of cargo types available for refitting
+			(not refittable if 0 or unset)
 
 
 	Properties for ships
