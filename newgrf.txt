@@ -193,7 +193,8 @@ amount between 31 months and 17 years is added to this as well.
 	08	B	AI special flag: set to 1 if engine is 'optimized' for
 			passenger service (AI won't use it for other cargo),
 			0 otherwise
-	09	W	Speed in mph*1.6 (0 for wagons)
+	09	W	Speed in mph*1.6 (for wagons only if no graphics
+				override, then 0=default, FFFF=no limit)
 	0B	W	Power (0 for wagons)
 	0D	B	Running cost factor (0 for wagons)
 	0E	D	Running cost base; for engines either 4C30 (steam),
@@ -202,7 +203,7 @@ amount between 31 months and 17 years is added to this as well.
 	13	B	Dual-headed flag; 1 if dual-headed engine, 0 otherwise
 	14	B	Cargo capacity
 	15	B	Cargo type
-	16	B	Weight in tons
+	16	B	Weight in tons, see also prop. 24
 	17	B	Cost factor
 	18	B	Engine rank for the AI
 			(AI selects the highest-rank engine of those it can buy)
@@ -266,6 +267,8 @@ amount between 31 months and 17 years is added to this as well.
 			to only show effect, but not to add power and weight
 	23 (1)	B	Set how much weight is adding by making wagons powered
 			using property 1B, in tons
+	24 (6)	B	High byte of vehicle weight, weight will be prop.24*256+prop.16
+	25 (7)	B	User-defined bit mask to set when checking veh. var. 42
 
 
 	Properties for road vehicles
@@ -359,6 +362,8 @@ Footnotes:
 		* 9  07 8B 04 04 2C 01 0A 02 <num-sprites>
 	(6) This property was introduced in 2.0.1 alpha 36, use this action 7:
 		* 9  07 8B 04 04 68 01 0A 02 <num-sprites>
+	(7) This property was introduced in 2.0.1 alpha 39, use this action 7:
+		* 9  07 8B 04 04 86 01 0A 02 <num-sprites>
 
 
 Note:
@@ -693,8 +698,10 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 			Bit 3	This is an 1x2 building
 			Bit 4	This is a 2x2 building
 			Bit 5	Animation flag, set in tiles 04 and 05
-				(large office block). Not supported for
-				new houses and must always be clear
+				(large office block). New buildings have
+				a different animation scheme than large
+				office blocks, but animation is still enabled
+				with this bit.
 			Bit 6	This building is a church
 			Bit 7	This building is a stadium
 
@@ -714,6 +721,10 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 			the town won't build buildings with the according
 			flag set until the old church/stadium is removed.
 			(This can be done by either the town or a player)
+			The animation flag works on a per-tile basis, so
+			you should enable it for additional tiles of multi-
+			tile buildings as well if you want all tiles to be
+			animated.
 	0A	W	Availablity years. The low byte is the minimum year,
 			the high is the maximum. The building can only be built
 			between these two years (inclusive). 1920 are added to
@@ -771,6 +782,11 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 	14	B	House callback flags
 			Bit 0		use callback 17 to decide wether the house can be built
 					on a given tile
+			Bit 1		use callback 1A to decide the following frame of the
+					animations.
+			Bit 2		use callback 1B to periodically start/stop the animation
+			Bit 3		use callback 1C to change animation state when
+					the construction state cahnges
 			Callback flags are ignored for additional building tiles.
 	15	B	House override byte. Setting this property makes this building appear
 			instead of the given old TTD building type. Setting the property is
@@ -783,6 +799,8 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 	16	B	Periodic refresh multiplier, used for random triggers. See at
 			action 2. Must be set for additional house tiles as well if you
 			want to randomize tiles independently.
+			If callback 1B is enabled in property 14, it is also called after
+			re-randomizing random bits.
 	17	D	Four colors used for random painting (see action 2). Each byte
 			of the dword defines a color, the values are the same as in action 3,
 			except that numbering starts from zero instead of 775. If not set,
@@ -813,6 +831,23 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 					to make them think twice.
 			For multi-tile buildings, bit 0 is ignored for additional tiles, but
 			bit 1 must be set for all tiles to work correctly.
+	1A	B	The bottom seven bits define how many frames the animation consists of,
+			minus one. (I.e. 0 means 1 frame, 1 means 2 frames etc.) Currently only
+			those animations are supported that don't have more than 32 frames, so
+			the maximum is 31.
+			The highest bit is set if the animation is looping, i.e. it should start
+			again from the first frame after showing the last frame. Non-looping
+			animations stop after the last frame, leaving it on the screen. Both kinds
+			of animations start automatically when the building is created. It's
+			recommended to use callback 1B with non-looping animations, so they are
+			played multiple times.
+	1B	B	Speed of the animation, i.e. the amount of time between switching frames.
+			The default value is 2, which means the switch occurs every 108 milliseconds.
+			Increasing this value by one doubles the wait, i.e. 3 will cause 216 ms delay,
+			while 4 will bause 432 ms, and so on. Values below 2 have the same effect
+			as 2, so the default is the fastest possible setting. The maximum is 16, which
+			means 1769 seconds (approx. half an hour) delay. Settings above this value
+			may cause strange behaviour.
 
 Action 1:	Define new vehicle sprite blocks.
 ~~~~~~~~~
@@ -1302,14 +1337,38 @@ Callback IDs stored in variable 0C:
 				The industry type is FF for towns and FE if
 				unknown (may happen if the industry is removed
 				while the AI builds a route).
-	19	vehicles
-				Cargo text suffix. This callback choses a
+	19	vehicles	Cargo text suffix. This callback choses a
 				misc grf text (set using action 4 textids D0xx)
 				and displays it after the cargo description,
 				e.g. after "5 crates of goods", in the refit
 				screen and for trains in the purchase window
-				as well
-
+				as well. While refitting, this callback is
+				called first with the subtype (veh.var.F2)
+				set to 0 and then with increasing subtypes
+				until the callback returns FF.
+	1A	town buildings	Called in every animation frame, needs to
+				return the number of the next frame to
+				display. Additionally, it can return
+				these special values:
+				FF - stop animation. The current frame stays
+				     on screen until the animation is restarted
+				FE - continue with next frame as usual. You
+				     can return this for stages where you don't
+				     want to do anything special
+	1B	town buildings	Called periodically, in a time interval specified
+				in property 16. Returns the number of the frame
+				the animation should jump to, or one of the
+				following special values:
+				FF - stop animation in its current frame
+				FE - start animation with its current frame
+				FD - leave the animation in its current state
+				     (do nothing)
+	1C	town buildings	Called when the building changes its construction
+				stage ( during normal gameplay, that means exactly
+				four times ). Can return the same values as
+				callback 1B. Variable 40 contains the new stage.
+				You can return FF for stages that don't have
+				animated graphics to save resources.
 
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
@@ -1328,9 +1387,11 @@ Vehicle properties for the variable:
 		same ID
 
 	42	consist cargo
-		returns dword 0000cctt, where tt is a bit mask of cargos and
+		returns dword uurrcctt, where tt is a bit mask of cargos and
 		cc is the most common cargo type (same list as in action 3),
-		tt has the following bits:
+		rr is the most common refit cycle of that cargo type, uu is
+		a bit mask of the bits defined by train prop. 25, and tt has
+		the following pre-defined bits:
 			0  Passengers
 			1  Mail
 			2  Town cargo (Goods,Food,Candy)
@@ -1466,6 +1527,11 @@ Town building properties:
 
 		Other bits are currently reserved for future use.
 
+	46	The current animation frame being displayed. If you don't
+		use animation callbacks, it's between zero and the value
+		set in property 1A. Animation callbacks can set this to
+		anything between 0 and 31.
+
 	80+x	None defined, and none ever will because town buildings
 		don't have an internal structure. Trying to access these
 		variables crashes TTD.
@@ -1476,6 +1542,13 @@ the construction state changes, which redraws the building), resulting
 in temporary graphics glitches when a visible building changes its
 graphics. These glitches can be fixed by scrolling the building out of
 view, then back again.
+
+Enabling animation on a house tile by setting properties 9, 1A and probably
+1B ensures that property 46 will indeed change with time, and the building
+is redrawn every time property 46 changes. This means that you can
+use a variational action 2 to choose the current frame according to property
+46. Please note that this kind of animation needs more CPU time and more
+sprites, so you should prefer palette animation if possible.
 
 When displaying a vehicle in the purchase list, the game will show
 those variations based on external variables (dates etc.) correctly,
@@ -1742,6 +1815,36 @@ Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 			8F D Track type cost multipliers (4 bytes, 3 of them used,
 			     either RR MR ML or RR EL MR/ML), value 08=standard rail cost
 			92 B Game mode, 0 in title screen, 1 in game and 2 in editor
+(only after 2.0.1 alpha 38 vcs 2)
+			93 D Tile refresh offset to left
+			94 D Tile refresh offset to right
+			95 D Tile refresh offset upwards
+			96 D Tile refresh offset downwards
+
+			The above four offsets define the size and position of the rectangle
+			refreshed when TTD decides to refresh a tile. The basis of the
+			calculations is the pixel coordinate of the north corner of the tile.
+			After calculating it, TTD subtracts offset_left from it to get the x
+			coordinate of the left edge, adds offset_right to get the x coordinate of the
+			right edge, subtracts offset_up to get the y coordinate of the top edge
+			and adds offset_down to get the y coordinate of the bottom edge. This
+			results in refreshing (offset_left+offset_right)*(offset_up+offset_down)
+			pixels. The default values of these variables are 31,36,122 and 32,
+			respectively.
+
+			Reading these values is not too useful, but you can modify them using
+			action D as well, so your sprites that would exceed the original limits
+			can still be redrawn and animated properly. Please note that TTD uses
+			these values for every tile, so specifying too high values may slow
+			the game down. Please also note that these variables are specified as
+			dwords for technical reasons, but only the bottom word will be used.
+
+			Since these values are global to the entire game, you shouldn't just
+			overwrite them with an action D. Instead, you should first check
+			if they're big enough for you by using action 7, and skip your action
+			D if they are. This way, the variables will be set to the maximal value needed,
+			not just the value needed for the last grf in the list.
+
 			(all other values greater 80 are reserved)
 
 	B param-size	See action 6 (ignored for bit tests, must be 4 for GRFID tests)
@@ -2098,7 +2201,8 @@ data=GRF ID.  This is only valid with operation 00 (set).  If the GRF ID
 cannot be found, a value of 0 is used for the parameter value instead.
 
 The target operand can also refer to the special variables from action 7,
-but at the moment the only variables that is valid to write are 8E and 8F.
+but at the moment the only variables that is valid to write are 8E,8F and
+93-96.
 
 Because the patch has to reallocate memory for the whole parameter list
 whenever a new parameter is added, you should set the parameter with the
