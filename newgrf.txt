@@ -33,18 +33,19 @@ num	bitval	type
 Format of new ttdpatch.grf pseudo-sprite instructions:
 Each instruction looks like this in the .NFO file:
 
-*   length  command data
+*   <length>  <action> <data>
 
 length is specified in decimal, command is one hex byte and
 data are a series of <length> bytes in hex
 
-command specifies what to do with the following data
+action specifies what to do with the following data
 
-  Command	What it does
+  Action	What it does
 	0	Change vehicle info (like TTD Alter)
 	1	Define new sprite block
 	2	Define new cargo ID: load status to sprite mapping
 	3	Define vehicle to cargo ID mapping
+	4	Define new vehicle names
 
 
 Specifics of the data for these actions:
@@ -89,7 +90,6 @@ Action 0:
 	13	W	capacity
 	15	B	base maintenance cost
 	16	D	bit mask of cargo types available for refitting
-
 
 
 Action 1:
@@ -146,4 +146,14 @@ Then the vehicle's veh-id is looked up, and searched for its cargo
 The cargo-id that is found is then used to determine the load status,
 and the base sprite id to use
 Finally, the current direction is added to the base sprite id, and returned
+
+
+Action 4:
+	Data is <veh-type> <num-veh> <offset> <data...>
+
+	veh-type	same as action 0 (currently only ships work)
+	num-veh		number of vehicles which are getting a new name
+	offset		number of the first vehicle that gets a new name
+	data		new names, each of them zero-terminated, after
+			which the next name begins.
 
