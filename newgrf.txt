@@ -561,9 +561,9 @@ calculated as string_class + string_entry_num.  These classes exist in TTD:
 	0800	Bare land info	B:Rough land
 	1000	Railroad tracks	0:Land sloped in wrong direction
 	1800	Roads		0:Land sloped in wrong direction for road
-	2000[*]	Towns		0:Towns, 6:Population
+	2000	Towns		0:Towns, 6:Population
 	2800	Trees		0:Plant trees
-	3000[*]	Rail station	0:Rail station selection
+	3000	Rail station	0:Rail station selection
 	3800	Ship depot	0:Ship depot orientation
 	4000	Savegames	0:Save game
 	4800	Industries	2:Coal mine
@@ -571,7 +571,7 @@ calculated as string_class + string_entry_num.  These classes exist in TTD:
 	5800	Objects		0:Object in the way
 	6000	Debugger(??)	0:Debugger
 	6800	Difficulty	0:Difficulty level
-	7000[*]	Player Info	4:New face
+	7000	Player Info	4:New face
 	7800[*] User-defined	e.g. train names, signs, etc.
 	8000	Vehicle names	0:Kirby Paul Tank
 	8800	Trains		0:Train depot
@@ -580,8 +580,7 @@ calculated as string_class + string_entry_num.  These classes exist in TTD:
 	A000	Aircraft	0:Airport construction
 	B000	Disasters	0:Zeppelin disaster at ...
 
-	[*] The strings in these classes cannot currently be changed.
-	    If you try anyway, the game will probably crash.
+	[*] The strings in this classes cannot be changed.
 
 To find the class and entry number for the string you're looking for, the
 easiest way is probably to load TTD Translator, find the first string in the
@@ -650,6 +649,7 @@ Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 			85 * TTDPatch flags, only for bit tests, see common.h
 			     for bit numbers (you can test all 128 bits)
 			86 B road traffic side, bit 4 clear=left, set=right
+			87 B euro character width (0 or 1 if not installed)
 			(all other values greater 80 are reserved)
 	B param-size	See action 6 (ignored for bit tests)
 	B condition-type
@@ -681,7 +681,7 @@ Action to skip	with 7	with 9
 1 (sprite blk)	yes	yes
 2 (cargo ID)	no[*]	no	[*] skip the corresponding action 3 instead
 3 (veh ID map)	yes	no
-4 (veh names)	yes	no
+4 (veh names)	yes[*]	no	[*] except for general texts
 5 (sprite blk)	yes	yes
 6 (apply param)	no	yes
 7 (skip sprite)	yes	yes
