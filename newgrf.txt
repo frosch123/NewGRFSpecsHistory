@@ -27,6 +27,7 @@ num	bitval	type
 24	1000000	Bubbles
 25	2000000 Plastic
 26	4000000	Fizzy Drinks
+255	n/a	Shown in purchase list (no actual cargo ID available)
 
 
 
@@ -43,25 +44,53 @@ action specifies what to do with the following data
   Action	What it does
 	0	Change vehicle info (like TTD Alter)
 	1	Define new sprite block
-	2	Define new cargo ID: load status to sprite mapping
+	2	Define new cargo ID: mapping of cargo type and load status to sprite
 	3	Define vehicle to cargo ID mapping
 	4	Define new vehicle names
+	5	New graphics such as pre-signals and overhead wires
+	6	Apply newgrf.txt parameter to following sprite data
+	7	Skip following sprites if condition is true
 
 
 Specifics of the data for these actions:
 
-Action 0:
+Note, the descriptions of the parameters are organized in this manner:
+	Size  Name  Description
+
+The size can be B for a single byte, W for a two-byte word,
+D for a four-byte dword, S for a zero-terminated string, or
+V for a variable size.  Words and dwords are in little-endian
+byte order.  If variable size is specified, the actual size depends
+on other parameters and is explained in the description.
+
+
+First sprite:
+
+	The first sprite in each .grf file has a special format.
+
+*   4  <num-entries>
+
+	D num-entries	The total number of sprites and pseudo-sprite
+			in this .grf file.  May be slightly larger than
+			the actual number, but must not be smaller.
+			Given as four bytes in little-endian format.
+
+
+Action 0:	Define new vehicle properties.
+
+	May appear anywhere in the .grf file.
+
 	Data is <veh-type> <num-props> <num-info> <offset>
 		then repeated numprops times: <property> <new-info>
 
-	veh-type	0..3 to replace trains, road vehicles, ships or planes
+	B veh-type	0..3 to replace trains, road vehicles, ships or planes
 			(currently only ships work)
-	num-props	how many properties to change
-	num-info	how many vehicles to change
-	offset		offset into each property (i.e. how many vehicles
+	B num-props	how many properties to change
+	B num-info	how many vehicles to change
+	B offset	offset into each property (i.e. how many vehicles
 			to skip before the first one to change)
-	property	what property to change, depends on the veh. type
-	new-info	new bytes of info
+	B property	what property to change, depends on the veh. type
+	V new-info	new bytes of info (variable size)
 
 	Properties common to all vehicle types
 	number	size	property
@@ -69,7 +98,11 @@ Action 0:
 	4	B	engine life in years
 	6	B	climates available (bit mask)
 
-	all of the above only apply to new games
+	all of the above only apply to new games, or when using Cht: ReloadEngines
+
+	Note, engine life also determines how long this engine can be bought
+	after being introduced (without using persisentengines).
+
 
 	Properties for trains
 	-none at the moment-
@@ -92,29 +125,37 @@ Action 0:
 	16	D	bit mask of cargo types available for refitting
 
 
-Action 1:
-	Data is <veh-type> <num-sprites> <num-dirs> <num-cid> <num-vid>
+Action 1:	Define new vehicle sprite blocks.
 
-	veh-type        same as action 0 (currently only ships work)
-	num-sprite	number of set of num-dirs sprites
-	num-dirs	how many sprites in each set (i.e. for each direction)
-	num-cid		how many different cargo-ids are defined
-	num-vid		how many different vehicle-ids are defined
+	May appear anywhere in the .grf file.
+
+	Data is <veh-type> <num-sprites> <num-dirs>
+
+	B veh-type	same as action 0 (currently only ships work)
+	B num-sprites	number of set of num-dirs sprites
 
 The following num-sprites * num-dirs sprites will be actual sprites,
 not pseudo-sprites
 
 
-Action 2:
-	Data is <veh-type> <cargo-id> <num-loadtypes> <num-loadingtypes> <loadtypes...>
+Action 2:	Define cargo IDs.
 
-	veh-type        same as action 0 (currently only ships work)
-	cargo-id	id of this particular cargo (w.r.t what sprites to show)
-	num-loadtypes	how many different states of load this set can display
+	May appear only *after* the sprite block (action 1) it corresponds
+	to, and not after any other sprite block.
+
+	Data is <veh-type> <cargo-id> <display-type> <data...> <num-loadtypes> <num-loadingtypes> <loadtypes...>
+
+	B veh-type	same as action 0 (currently only ships work)
+	B cargo-id	ID of this particular cargo (w.r.t. what sprites to show)
+			Cargo IDs must be unique for each sprite block defined
+			by action 1, and are forgotten when the next action 1
+			is encountered.
+	B num-loadtypes	how many different states of load this set can display
 			this must not be zero, or division by zero will occur
 			these are only the number of loadtypes while in motion
-	num-loadingtypes  same as num-loadtypes but shown while ship is loading/unloading
-	loadtypes...	sprite ids for each of the states of load; first for the
+	B num-loadingtypes
+			same as num-loadtypes but shown while ship is loading/unloading
+	B loadtypes...	sprite ids for each of the states of load; first for the
 			"in motion" load states and then the "loading/unloading"
 			load states
 
@@ -126,17 +167,23 @@ If there are four load types, they are shown above/below 25%, 50% and 75%
 etc...
 
 
-Action 3:
-	Data is <veh-type> <n-vid> <veh-id>... <def-cid> <num-vcid> [<cargo-num> <cid>]...
+Action 3:	Associate cargo IDs with vehicles.
 
-	veh-type        same as action 0 (currently only ships work)
-	n-vid		how many vehicle ids this definition applies to
-	veh-id		the vehicle ids (counted from the first of its class)
-	def-cid		is the default cargo id, if the actual cargo doesn't
-			match any of the following
-	num-vcid	number of vehicle-specific cargo ids (=number of pairs that follow)
-	cargo-num	number of cargo for this cargo id (number from 0..26)
-	cid		cargo id for this type of cargo
+	May appear only *after* all corresponding cargo IDs have been
+	defined by an action 2 entry.
+
+	Data is <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-num> <cid>]... <def-cid>
+
+	B veh-type	same as action 0 (currently only ships work)
+	B n-vid		how many vehicle IDs this definition applies to
+	B veh-id	the vehicle IDs (counted from the first of its class)
+	B num-vcid	number of vehicle-specific cargo IDs in this definition
+	B cargo-type	number of this cargo type (e.g. mail=2, wood=7)
+	W cid		cargo ID for this type of cargo
+	W def-cid	is the default cargo ID, if the actual cargo type
+			doesn't match any of the previous cargos
+NOTE 1: Location of def-cid changed from before TTDPatch 1.9.1 alpha 5!
+NOTE 2: Cargo IDs are now WORD values here (I need two bytes)!
 
 
 Note
@@ -148,12 +195,91 @@ and the base sprite id to use
 Finally, the current direction is added to the base sprite id, and returned
 
 
-Action 4:
+Action 4:	Define new vehicle names.
+
+	May appear anywhere in the .grf file.
+
 	Data is <veh-type> <num-veh> <offset> <data...>
 
-	veh-type	same as action 0 (currently only ships work)
-	num-veh		number of vehicles which are getting a new name
-	offset		number of the first vehicle that gets a new name
-	data		new names, each of them zero-terminated, after
+	B veh-type	same as action 0 (currently only ships work)
+	B num-veh	number of vehicles which are getting a new name
+	B offset	number of the first vehicle that gets a new name
+	S data		new names, each of them zero-terminated, after
 			which the next name begins.
+
+
+Action 5:	Define new non-vehicle sprite blocks.
+
+	May appear anywhere in the .grf file.
+
+	Data is <graphics-type> <num-sprites> <other data...>
+
+	B graphics-type	Can have any of the following values:
+				4  Pre-signal graphics
+				5  Overhead wires and pylons for electrified railways
+	B num-sprites	How many sprites are in this set?
+	B other data	Graphics type specific data.  Not defined yet.
+
+
+Action 6:	Apply parameter to following pseudo-sprite or sprite.
+
+	May appear anywhere in the .grf file.
+
+	Data is <param-num> <param-size> <offset> ... <00>
+
+	B param-num	Number of parameter to substitute (First = "zero")
+			Ignored if that parameter was not specified in newgrf.txt
+	B param-size	How many bytes to replace.  If larger than 4, the
+			bytes of the following parameter are used.  In that
+			case, nothing is applied unless *all* parameters
+			were specified.
+	B offset	Offset into data from beginning of next sprite
+			to place where parameter is to be stored
+
+	The triplet of number, size and offset can be repeated as often
+	as necessary, for any kind of values.  The final byte must be
+	a literal "00" to indicate the end of the list.
+
+
+Action 7:	Skip next n sprites if condition is true.
+
+	May appear anywhere in the .grf file.
+
+	Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
+
+	B param-num	See action 6
+	B param-size	See action 6
+	B condition-type
+			What condition to test for:
+				0  test for bit value being set
+				1  test for bit value being unset
+				2  param is equal to value
+				3  param is not equal to value
+				4  param is greater than value
+				5  param is less than value
+	V value		Bit number (a byte), or value to compare with
+			If a value not a bit number, it has as many bytes
+			as the param-size specifies.
+	B num-sprites	How many sprites to skip if the condition is true
+
+
+
+General strategy for implementing new graphics in the .grf file:
+* Don't forget that the first sprite is special
+* Action 0 (new properties) can appear anywhere in the .grf file,
+	or nowhere if the sprite numbers are set to FF somewhere else.
+* Start a block of new graphics with an action 1 (sprite block) entry,
+	followed by the actual sprite data.
+* After action 1, give action 2 (cargo ID) entries for each different
+	vehicle and cargo type combination
+* After all actions 2, use action 3 (veh ID to cargo ID maps) to specify
+	what cargo IDs are to be shown for which vehicle and which cargo types
+* There may be *no* action 1 between the final action 3 for that sprite
+	block
+
+Remember that:
+- cargo types are what the vehicle will actually transport, e.g. passengers,
+	coal, iron ore etc.
+- cargo IDs are numbers unique to each sprite block, one for each different
+	cargo type that each new vehicle can transport
 
