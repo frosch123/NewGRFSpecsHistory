@@ -219,6 +219,8 @@ amount between 31 months and 17 years is added to this as well.
 			(positioning currently only works for steam)
 			00..0F=use effect from prop 19 (default), 10..1F=steam,
 			20..2F=diesel, 30=3F=electric, 40=disable effect
+	23 (1)	B	Set how much weight is adding by making wagons powered
+			using property 1B, in tons
 
 
 	Properties for road vehicles
@@ -266,11 +268,11 @@ amount between 31 months and 17 years is added to this as well.
 
 
 Footnotes:
-	(1) This property was introduced in 2.0.1 alpha 6. To keep your grf
-	    file compatible with 2.0 rev 1, set the grf version in action 8
+	(1) This property was introduced in 2.0.1 alpha 6 and 7. To keep your
+	    grf file compatible with 2.0 rev 1, set the grf version in action 8
 	    to 5, and use this action 7 to skip action 0 which uses these
 	    new properties:
-		* 9  07 8B 04 05 3C 00 0A 02 <num-sprites>
+		* 9  07 8B 04 04 46 00 0A 02 <num-sprites>
 
 
 Note:
@@ -895,8 +897,8 @@ Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 				1  test for bit value being unset
 				2  param is equal to value
 				3  param is not equal to value
-				4  param is greater than value
-				5  param is less than value
+				4  param is less than value
+				5  param is greater than value
 				6  GRFID is active (only for param-num=88)
 				7  GRFID is not active (only for param-num=88)
 	V value		Bit number (a byte), or value to compare with
