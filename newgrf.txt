@@ -6,7 +6,7 @@ num	bitval	type
  3	8	Oil
  4	10	Livestock
  5	20	Goods
- 6	40	Grain/Maize
+ 6	40	Grain/Wheat/Maize
  7	80	Wood
  8	100	Iron Ore
  9	200	Steel
@@ -20,10 +20,10 @@ num	bitval	type
 17	20000	Sugar
 18	40000	Toys
 19	80000	Batteries
-20	100000	Candy
+20	100000	Candy (Sweets)
 21	200000	Toffee
 22	400000	Cola
-23	800000	Cotton Candy
+23	800000	Cotton Candy (Candyfloss)
 24	1000000	Bubbles
 25	2000000 Plastic
 26	4000000	Fizzy Drinks
