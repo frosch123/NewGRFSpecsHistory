@@ -580,7 +580,7 @@ calculated as string_class + string_entry_num.  These classes exist in TTD:
 	A000	Aircraft	0:Airport construction
 	B000	Disasters	0:Zeppelin disaster at ...
 
-	[*] The strings in this classes cannot be changed.
+	[*] Strings in this class cannot be changed.  Do not try to do so.
 
 To find the class and entry number for the string you're looking for, the
 easiest way is probably to load TTD Translator, find the first string in the
