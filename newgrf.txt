@@ -651,14 +651,18 @@ Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 	B param-num	See action 6
 			Additionally, the following values test in-game
 			variables:
+
 			83 B current climate, 0=temp, 1=arctic, 2=trop, 3=toyland
 			84 B .grf loading stage, 0=initialization, 1=activation
 			85 * TTDPatch flags, only for bit tests, see common.h
 			     for bit numbers (you can test all 128 bits)
 			86 B road traffic side, bit 4 clear=left, set=right
 			87 B euro character width (0 or 1 if not installed)
+			88 B see if specified GRFID is active (only action 7, not 9)
+
 			(all other values greater 80 are reserved)
-	B param-size	See action 6 (ignored for bit tests)
+
+	B param-size	See action 6 (ignored for bit tests, must be 4 for GRFID tests)
 	B condition-type
 			What condition to test for:
 				0  test for bit value being set
@@ -667,6 +671,8 @@ Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 				3  param is not equal to value
 				4  param is greater than value
 				5  param is less than value
+				6  GRFID is active (only for param-num=88)
+				7  GRFID is not active (only for param-num=88)
 	V value		Bit number (a byte), or value to compare with
 			If a value is not a bit number, it has as many bytes
 			as the param-size specifies.
@@ -680,6 +686,13 @@ of a non-pseudo-sprite block, or TTDPatch will attempt to interpret these
 regular sprites as pseudo-sprites, and will most likely crash.  Also don't
 skip beyond the end of a .grf file.  If you need to skip the rest of a .grf
 file, just use num-sprites = 0.
+
+For condition-type 6 and 7, the jump is not taken if the GRFID doesn't exist.
+Only if the GRFID is present in memory (i.e. the corresponding .grf file has
+been loaded) *and* the condition is true, is the jump taken.  You can use this
+to test for the mere presence of a GRFID, whether it is active or not.  Note
+that the mere presence is independent of the order in newgrf(w).txt, whereas
+activation always happens in the order of the entries in newgrf(w).txt.
 
 See below for what actions can be skipped using either action 7 or action 9:
 
