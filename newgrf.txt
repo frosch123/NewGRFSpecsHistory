@@ -211,7 +211,18 @@ amount between 31 months and 17 years is added to this as well.
 			Use this when converting waggons to engines or vice versa
 	1B (1)	W	Power added by each wagon connected to this engine
 			(only applied for wagons with graphics override for this engine)
+	1C (2)	B	Refit cost, using 50% of the purchase price cost base
 	1D (1)	D	Bit mask of cargo types available for refitting
+	1E (2)	B	Callback flags bit mask
+			Bit 0	use callback to determine whether vehicle is
+				powered for steam/smoke/sparks generation and
+				determining whether to use added wagon
+				power/weight
+				return value interpreted the same as prop 22
+				prop 22 is used if callback fails for
+				whatever reason
+				this callback only happens after loading a game
+				or when buying or moving vehicles in the depot
 	21	B	Make vehicle shorter by this amount (e.g. for tenders)
 			00=not shorter, 01=shorter by 12.5%, up to 07=shorter by 87.5%
 			Does not work for the first vehicle in a consist (i.e. the engine)
@@ -222,6 +233,10 @@ amount between 31 months and 17 years is added to this as well.
 			(positioning currently only works for steam)
 			00..0F=use effect from prop 19 (default), 10..1F=steam,
 			20..2F=diesel, 30=3F=electric, 40=disable effect
+			for wagons, 40=no wagon power/weight is added, and no
+			effect is shown, 00..0F=wagon power/weight is added
+			but no effect is shown, with all other values wagon
+			power/weight is added and corresponding effect is shown
 	23 (1)	B	Set how much weight is adding by making wagons powered
 			using property 1B, in tons
 
@@ -241,6 +256,7 @@ amount between 31 months and 17 years is added to this as well.
 			uses prop.08 if unset; always set prop. 08 too)
 	16	D	Bit mask of cargo types available for refitting
 			(not refittable if 0 or unset)
+	17 (2)	B	Callback flags bit mask
 
 
 	Properties for ships
@@ -253,6 +269,7 @@ amount between 31 months and 17 years is added to this as well.
 	0F	B	Running cost factor
 	10	B	Sound effect type (4=cargo ship, 5=passenger ship)
 	11	D	Bit mask of cargo types available for refitting
+	12 (2)	B	Callback flags bit mask
 
 
 	Properties for aircraft
@@ -268,6 +285,7 @@ amount between 31 months and 17 years is added to this as well.
 	12	B	Sound effect (not for helicopter); 6=prop 1, 7=jet 1,
 			3b=supersonic, 3d=jet 2, 45=prop 2, 46=jet 3
 	13 (1)	D	Bit mask of cargo types available for refitting
+	14 (2)	B	Callback flags bit mask
 
 
 Footnotes:
@@ -276,6 +294,8 @@ Footnotes:
 	    to 5, and use this action 7 to skip action 0 which uses these
 	    new properties:
 		* 9  07 8B 04 04 46 00 0A 02 <num-sprites>
+	(2) This property was introduced in 2.0.1 alpha 11, use this action 7:
+		* 9  07 8B 04 04 6E 00 0A 02 <num-sprites>
 
 
 Note:
@@ -288,6 +308,23 @@ Note:
 	- The refitting bit masks don't work yet for trains and planes
 	  but they can be set and will be saved for later
 	- Don't use property numbers that aren't defined here
+
+The callback mask is an advanced feature, currently only used for trains.  It
+allows various patch functions to change their behaviour according to the
+current graphics of a vehicle, and is therefore especially useful in conjunction
+with variational/random graphics.  To use it, the patch sets the corresponding
+callback ID in the 0C variable, and starts from the vehicle's action 3
+definition, following the chain of action 2 entries until the final decision
+is reached.  This final decision is indicated by an action 2 returning a
+set-id with the high byte set to FF.  The low byte is then used as return
+value of the callback.  Note that at least one action 2 is the chain MUST
+check the value of 0C, because a set-id with FF in the high byte is invalid
+for a regular action 2, and may only be returned for callbacks.  Unlike all
+other properties, callback flags are not saved with saveoptionaldata on,
+because they would not work without the graphics file anyway.  Ensure that
+the callback bits are only set if the corresponding action 2 is built for
+callbacks.
+
 
 You can define several new properties for many vehicles using a single
 action 0 entry.  For example, the following entry:
@@ -479,6 +516,7 @@ numtracktypes specifies how the various track systems look:
 	04	four different looks: regular, electrified, monorail, maglev
 
 Using variational action 2 entries is valid for stations.  In addition,
+***REWRITE WILL USE CALLBACKS***
 for set-ids used later as a construction-set-id, the variational action 2
 can specifiy a cargo ID of FF FF (-1) to indicate that this particular set
 is not available in the current circumstances (e.g. because of the wrong year,
@@ -595,6 +633,8 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			03 current climate, 0=temp, 1=arctic, 2=trop, 3=toyland
 			09 date fraction, a word value, incremented by 0x375 every engine tick
 			0A animation counter, a word value, incremented every tick
+			0C current callback ID (feature-specific), set to 00
+			   when not in a callback
 			40+x and
 			80+x feature-specific property, see below
 	V varadjust	adjust variable to a more useful range; either
@@ -633,10 +673,12 @@ structure in TTD's game data.  The 40+x variables are special variables that
 are computed on-the-fly, and aren't actually stored anywhere in memory.
 
 Vehicle properties for the variable:
-	40	return number of vehicle within consist counted from engine
-		in low byte (engine=0, 1st wagon/mail comp.=1, 2nd wagon/rotor=2
-		3rd wagon=3 etc.), and counted from end in high byte (last
-		wagon=0, next-to-last wagon=1 etc.)
+	40	returns dword 00nnbbff, where ff is the number of vehicle
+		within consist counted from engine (front), e.g. engine=0,
+		1st wagon/mail comp.=1, 2nd wagon/rotor=2, 3rd wagon=3 etc.,
+		bb is the number counted from end, e.g. last wagon=0,
+		next-to-last wagon=1 etc., and nn is the total number of
+		vehicles in the consist
 
 	80+x	x is the offset into the vehicle structure, see struc veh
 		in ttdprot.ah, for example:
@@ -651,6 +693,11 @@ Vehicle properties for the variable:
 	    Also this is only valid for the first engine, not wagons or
 	    additional engines.
 
+	0C callback IDs
+		10	checking whether vehicle should be powered
+			(for steam/smoke/spark production and added
+			wagon power/weight)
+
 Station properties:
 	40+x	none defined at the moment
 
@@ -658,6 +705,9 @@ Station properties:
 		struc station in ttdprot.ah, for example
 		10	number and length of train platforms
 		7A	facilities available
+
+	0C callback IDs
+		none defined at the moment
 
 
 Town properties:
@@ -668,6 +718,9 @@ Town properties:
 		02	population
 		14	5 WORD values of the town zone radii
 		36	number of buildings
+
+	0C callback IDs
+		none defined at the moment
 
 
 When displaying a vehicle in the purchase list, the game will show
