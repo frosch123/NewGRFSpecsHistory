@@ -293,41 +293,65 @@ Action 1:	Define new vehicle sprite blocks.
 
 May appear anywhere in the .grf file.
 
-Data is <01> <veh-type> <num-sprites> <num-dirs>
+Data is <01> <feature> <num-sets> <num-ent>
 
-	B veh-type	same as action 0
-	B num-sprites	number of sets of num-dirs sprites
-	B num-dirs	how many different vehicle directions in each sprite set
-			Set num-dirs=8, unless your sprites are symmetric.
-			In that case, use num-dirs=4.
+	B feature	feature to define sprites for
+			0, 1, 2, 3: veh-type, 4: stations
+	B num-sets	number of sprite sets
+	B num-ent	how many entries per sprite set
+			For vehicles, this is the number of different
+				vehicle directions in each sprite set
+				Set num-dirs=8, unless your sprites are symmetric.
+				In that case, use num-dirs=4.
+			For stations, must be 1 (both NE/SW and NW/SE same)
+				or 2 for two distinct orientations
 
-The following num-sprites times num-dirs sprites will be actual sprites,
-not pseudo-sprites.  The first num-dirs sprites will be sprite set 0, the
-next num-dirs sprites will be sprite set 1, and so on up to sprite set
-number num-sprites - 1.
+The following num-sets times num-ent sprites will be real sprites,
+not pseudo-sprites.  The first num-ent sprites will be sprite set 0, the
+next num-ent sprites will be sprite set 1, and so on up to sprite set
+number num-sets - 1.
 
 
-Action 2:	Define cargo IDs or randomized/variational cargo ID lists
+Action 2:	Define graphics set IDs or randomized/variational set ID lists
 ~~~~~~~~~
 
 May appear only *after* the sprite block (action 1) it corresponds
 to.  It always refers to the most recent sprite block.
 
+Data is <02> <feature> <set-id> <type/num-entries> <feature-specific-data...>
+
+	B feature	see action 1
+	B set-id	ID of this particular definition
+	B type/num-entries
+			if 80 or greater, this is a randomized or variational
+			list definition, see below
+			otherwise it specifies a number of entries, the exact
+			meaning depends on the feature
+	V feature-specific-data
+			see below
+
+Note that you cannot skip the definition of a set ID using action 7 or 9.
+If you try to do that, it will not work they way you would expect.  The best
+way is to skip an action 3 conditionally, instead of using action 7 to select
+between several definitions of a single set ID number.
+
+
+For vehicles (features 0, 1, 2 or 3):
+-------------------------------------
+
 Data is <02> <veh-type> <cargo-id> <num-loadtypes> <num-loadingtypes> <loadtypes...>
 
-	B veh-type	see action 0
+	B feature	see action 1
 	B cargo-id	ID of this particular definition, must be unique
 			for each sprite set
-	B num-loadtypes	bits 0-6: how many different states of load this set
+	B num-loadtypes	how many different states of load this set
 			can display, while the vehicle is in motion
-			bit 7: if set, this is not a cargo ID but a randomized
-			or variational cargo ID list (see below)
 	B num-loadingtypes
 			same as num-loadtypes but shown while vehicle is
 			either loading or unloading
-	W loadtypes...	sprite ids for each of the states of load; first for the
-			"in motion" load states and then the "loading/unloading"
-			load states
+	W loadtypes...	number of sprite sets from most recent action 1 for
+			each of the states of load; first for the "in motion"
+			load states and then the "loading/unloading" load states
 
 A cargo ID defines a super-set of sprite sets that go together to display
 a certain cargo type, at various states of motion or loading.  For example,
@@ -344,16 +368,28 @@ If there are three load types, they are shown above/below 33% and 66%
 If there are four load types, they are shown above/below 25%, 50% and 75%
 etc...
 
-Note that you cannot skip the definition of a cargo ID using action 7 or 9.
-If you try to do that, it will not work they way you would expect.  The best
-way is to skip an action 3 conditionally, instead of using action 7 to select
-between several definitions of a single cargo ID number.
+
+For stations (feature 4):
+-------------------------
+
+Data is <02> <04> <station-id> <04> <00> <set0> <set1> <set2> <set3>
+
+	B 04		feature 4=stations
+	B station-id	ID of this station set, for referral by action 3 later
+	B 04		4 different orientations possible
+	B 00		verbatim 00
+	W set0..set3	Number of sprite set in most recent action 1, for
+			plain platform, platform with house, roof 1, roof 2
+
+A set must always define all four possible types, even if some may not end
+up being used, because the layout doesn't allow roofed stations for example.
 
 
 Randomized and variational cargo ID lists:
+------------------------------------------
 
-If num-loadtyoes has bit 7 set, the action is interpreted differently,
-depending on the value of num-loadtypes.
+If type has bit 7 set, action 2 is interpreted differently,
+depending on the value of type.
 
 In that case, it specifies a list of cargo IDs instead, providing an
 intermediate step in the sprite determination.  Such a definition can itself
@@ -364,56 +400,76 @@ that definition, i.e. you can't refer to cargo IDs before they have been
 defined.
 
 
-For num-loadtypes 80:	list of randomized cargo IDs
+For type 80 or 83:	list of randomized cargo IDs
+----------------------------------------------------
 
-Data is <02> <veh-type> <cargo-id> <80/83> <random-type> <nrand> <randbit> <cargo-IDs...>
+Data is <02> <veh-type> <set-id> <80/83> <random-triggers> <randbit> <nrand> <set-IDs...>
 
-	B veh-type	same as above
-	B cargo-id	same as above, can't share the same number with
-			another cargo ID
+	B feature	see action 1
+	B set-id	same as above, can't share the same number with
+			another set ID
 	B 80/83		literal 80 or 83 (hex) to indicate a randomized
 			cargo ID list
-			80 means the triggers refer to the vehicle itself
+			80 means the triggers refer to the vehicle/station itself
 			83 means the triggers refer to the engine of the
-			   consist of this vehicle
-	B random-type	a bitmask of triggers that cause the sprite to change
-			01	whenever the vehicle gets a new cargo load
-			02	whenever the vehicle enters a depot and is
-				serviced
+			   consist of this vehicle (for vehicles), to the
+			   corresponding city for stations
+	B random-triggers
+			a bitmask of triggers that cause the sprite to change
+			the meaning is feature-specific, see below
+			the only common bit is:
 			80	only change if *all* triggers are met,
 				by default changes if *any* triggers are met
-			(currently no other bits are defined)
 	B randbit	number of lowest bit to consider for the random number
 			should be zero unless this random definition references
 			another randomized cargo ID list
 	B nrand		how many different randomized cargo IDs to show
 			must be a power of two (e.g. 2, 4, 8, 16....)
-	W cargo-IDs	list of nrand different cargo-IDs that are chosen randomly
-			you can of course list a cargo-ID multiple times to
-			increase its probability
+	W set-IDs	list of nrand different set-IDs from which one
+			is chosen randomly with uniform probability
 
-	When displaying vehicles in the purchase list, the game will always
-	show the first cargo-ID listed, not a random one.
+Random triggers for vehicles:
+	01	the vehicle gets a new cargo load
+	02	the vehicle enters a depot and is serviced
+	04	the consist has no more cargo
+	08	any vehicle of the consist gets more cargo
 
-	If you have several random cargo ID lists in a chain, normally all of
-	them would check the same bits in an eight-bit randomized value.  To
-	prevent that, choose randbit such that all random checks are linearly
-	independent, or at least as independent as possible.  For example,
-	if one check has 8 possibilities, it needs three bits (values 0-7).
-	If you have another check, this means you shouldn't use the first
-	three bits, so set randbit to 3.  Then, if you have another check,
-	increase randbit again, but make sure not to check for any bits
-	above bit 7, because those bits will always be zero.
+	The consist triggers 04 and 08 will trigger for all vehicles in the
+	consist with this trigger, and all matching vehicles will be set
+	to the same random state.  However, if non-consist triggers match
+	later, each vehicle will be re-randomised individually.
 
-	The cargo ID is always randomized when a vehicle is first bought,
-	but from then on it only changes when any or all of the trigger
-	conditions are met.  These conditions are checked according to
-	the current graphics, so if there are several random lists in a
-	chain, only the triggers of the chain that defines the current
-	graphics matter.  To be on the safe side, always have identical
-	triggers in all final random lists of a chain.
+Random triggers for stations:
+	none at the moment
 
-For num-loadtypes 81/82: list of variational but deterministic cargo IDs
+Random triggers for cities:
+	none at the moment
+
+
+When displaying vehicles in the purchase list, the game will always
+show the first cargo-ID listed, not a random one.
+
+If you have several random cargo ID lists in a chain, normally all of
+them would check the same bits in an eight-bit randomized value.  To
+prevent that, choose randbit such that all random checks are linearly
+independent, or at least as independent as possible.  For example,
+if one check has 8 possibilities, it needs three bits (values 0-7).
+If you have another check, this means you shouldn't use the first
+three bits, so set randbit to 3.  Then, if you have another check,
+increase randbit again, but make sure not to check for any bits
+above bit 7, because those bits will always be zero.
+
+The cargo ID is always randomized when a vehicle is first bought,
+but from then on it only changes when any or all of the trigger
+conditions are met.  These conditions are checked according to
+the current graphics, so if there are several random lists in a
+chain, only the triggers of the chain that defines the current
+graphics matter.  To be on the safe side, always have identical
+triggers in all final random lists of a chain.
+
+
+For types 81/82: list of variational but deterministic cargo IDs
+----------------------------------------------------------------
 
 Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 		<nvar> <cid-definitions...> <default-cid>
@@ -427,9 +483,10 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 	B 81/82		literal 81 or 82 (hex) to indicate a variational
 			cargo ID list
 			81 means the following variable refers to the
-			   vehicle itself
+			   vehicle/station itself
 			82 means the following variable refers to the engine
-			   of the consist of this vehicle
+			   of the consist of this vehicle (for vehicles)
+			   or the corresponding city (for stations)
 	B variable	what variable determines the cargo ID to choose
 			00 current date (counted as days from 1920)
 			01 current year (count from 1920, max. 2175 even with eternalgame)
@@ -437,11 +494,8 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			03 current climate, 0=temp, 1=arctic, 2=trop, 3=toyland
 			09 date fraction, a word value, incremented by 0x375 every engine tick
 			0A animation counter, a word value, incremented every tick
-			80+x vehicle property (where x is the offset in veh struct)
-			for example,
-			B4 current vehicle speed (speed is at 34) [1]
-			C0 vehicle age in days (age is at 40)
-			C4 year built (counted from 1920)
+			40+x and
+			80+x feature-specific property, see below
 	B shift-num	number of bits to right-shift the variable by
 	B AND-mask	bit-mask to AND the value of the variable with after
 			shifting it; use FF to leave all bits as they are
@@ -455,26 +509,18 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			below matches; must be specified even if the ranges
 			cover all possible values
 
-	When displaying vehicle in the purchase list, the game will show
-	those variations based on external variables (dates etc.) correctly,
-	but variations based on vehicle properties (speed, age etc.) will
-	always show the first (not the default) cargo-ID.
+For all features, the 80+x variables are offsets into the corresponding
+structure in TTD's game data.  The 40+x variables are special variables that
+are computed on-the-fly, and aren't actually stored anywhere in memory.
 
-	Since only byte-ranges are supported, you must use the shift-num to
-	move the value into a useful range.  For example, the vehicle age
-	is normally a two-byte value.  If you want to specify the age range
-	15-20 years, the age would be 5479-7305 in days.  To get this to
-	fit in a byte value, you have to shift it to the right by 5 bits,
-	yielding 171-228, which introduces a slight rounding error of course.
+Vehicle properties for the variable:
+	40+x	none defined
 
-	Then you specify the range 171 (AB) to 228 (E4), for example using this
-	pseudo-sprite data (parenthesis for emphasis only):
-
-	* 17	00 03 81 C0 05 FF 02 (00 00 00 AA) (01 00 AB E4) (02 00)
-
-	This will use cargo ID 0 if the age is 0 to 5471 days, ID 1 if the
-	age is from 5472 to 7328 days, and ID 2 otherwise.
-
+	80+x	x is the offset into the vehicle structure, see struc veh
+		in ttdprot.ah, for example:
+		B4	current vehicle speed (speed is at 34) [1]
+		C0	vehicle age in days (age is at 40)
+		C4	year built (counted from 1920)
 
 	[1] Note that the unit of the speed depends on the vehicle type
 	    For trains: in mph/1.6
@@ -482,6 +528,36 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 	    For planes: in mph*8
 	    Also this is only valid for the first engine, not wagons or
 	    additional engines.
+
+Station properties:
+	40+x	none at the moment
+	80+x	x is the
+
+Town properties:
+	40+x	none at the moment
+	80+x
+
+
+When displaying a vehicle in the purchase list, the game will show
+those variations based on external variables (dates etc.) correctly,
+but variations based on vehicle properties (speed, age etc.) will
+always show the first (not the default) cargo-ID.
+
+Since only byte-ranges are supported, you must use the shift-num to
+move the value into a useful range.  For example, the vehicle age
+is normally a two-byte value.  If you want to specify the age range
+15-20 years, the age would be 5479-7305 in days.  To get this to
+fit in a byte value, you have to shift it to the right by 5 bits,
+yielding 171-228, which introduces a slight rounding error of course.
+
+Then you specify the range 171 (AB) to 228 (E4), for example using this
+pseudo-sprite data (parenthesis for emphasis only):
+
+* 17	00 03 81 C0 05 FF 02 (00 00 00 AA) (01 00 AB E4) (02 00)
+
+This will use cargo ID 0 if the age is 0 to 5471 days, ID 1 if the
+age is from 5472 to 7328 days, and ID 2 otherwise.
+
 
 Action 3:	Associate cargo IDs with vehicles
 ~~~~~~~~~
@@ -681,7 +757,7 @@ Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 			87 B reserved
 			88 B see if specified GRFID is active (only action 7,
 			     not 9; and only valid for condition-types 6 or 7)
-
+			8B D TTDPatch version
 			(all other values greater 80 are reserved)
 
 	B param-size	See action 6 (ignored for bit tests, must be 4 for GRFID tests)
@@ -734,6 +810,26 @@ Bit numbers for TTDPatch flags (param-num = 85):
 	4C	newagerating
 	4D	buildonslopes
 	4F	planespeed
+
+Format of the TTDPatch version variable: MMmrbbbb
+	MM is the major version
+	m is the minor version
+	r is the revision
+	bbbb is the build number
+
+	For example:
+	1.9.1 alpha 50 has MM=1, m=9, r=1, bbbb=50*10 or 019101F4
+	2.0 beta 4 has MM=2, m=0, r=4, bbbb=4*10 or 02040028
+	2.0 final has MM=2, m=0, r=7, bbbb=70 or 02070046
+	2.0.1 alpha 3 has MM=2, m=0, r=10, bbbb=3*10, or 020A001E
+
+	Generally, an alpha/beta version number is encoded in the build
+	number. 2.0.1 has r=10 because r>0 was accidentally used by the
+	beta versions and the final.
+
+	This variable is only available since 2.0.1 alpha 3 or 2.0 rev 1.
+	If you need it, set the action 8 newgrf version to 5 to prevent
+	loading in 2.0 final.
 
 Notes:
 
@@ -821,10 +917,11 @@ climate, for example.
 The GRF ID "FFFFFFFF" is reserved for graphics files that are controlled
 by other switches, for example pre-signals, the catenary system or track
 foundations on slopes.  These will be loaded and activated whenever they
-are in newgrf(w).cfg, disregarding whether they were active before or not.
+are in newgrf(w).cfg and their corresponding switch is on, regardless
+of whether they were active before or not.
 
 The description should be a short zero-terminated string that describes
-the contents of the .grf file.  It might for example be used by other
+the contents of the .grf file.  It might for example be displayed by other
 programs that allow selecting .grf files for newgrf.cfg.
 
 The zero-terminated copyright string has no specified format.  It can
@@ -834,14 +931,27 @@ author of the .grf file, it should be something like
 Optionally you can follow with your contact info and any other
 information you want to include in the .grf file.
 
+Both description and copyright strings are currently ignored by TTDPatch,
+they are at the moment only useful for displaying in GRF Manager.  However,
+in the future, TTDPatch may have an in-game window displaying the currently
+active graphics, in which case the description would be displayed there.
+
 Newgrf version table
 
 newgrf	compatible
 version	with		TTDPatch version
 00	00		1.9.1 alpha 27 and earlier
-01	00-01		1.9.1 alpha 28 and above
-02	02		2.0
-03-FF	- not defined yet -
+01	00..01		1.9.1 alpha 28 and above
+02..04	02..04		2.0
+05	02..05		2.0.1 alpha 3, 2.0 rev 1
+06-FF	- not defined yet -
+
+Note, because TTDPatch 2.0 is compatible with versions 2, 3 and 4, but
+TTDPatch 2.0.1 alpha 3 or 2.0 rev 1 are compatible with versions 2, 3, 4 and
+5, use version 2, 3 or 4 for a .grf that is compatible with 2.0 and above,
+and use version 5 for a .grf that requires at least 2.0.1 alpha 3 or
+2.0 rev 1.  To check the exact version, use action 7 with variable 8D in that
+case.
 
 
 Action 9:	Skip next n sprites if condition is true.
@@ -850,8 +960,8 @@ Action 9:	Skip next n sprites if condition is true.
 (See actions 7, 9 above.)
 
 
-Action 0A:	Replace arbitrary TTD sprites
-~~~~~~~~~~
+Action A:	Replace arbitrary TTD sprites
+~~~~~~~~~
 
 Using this action, you can replace arbitrary sprites in trg1.grf with your
 own version.
@@ -893,21 +1003,25 @@ You must include the first three comment lines or the file won't work.
 // (Info version 4)
 // Format: spritenum pcxfile xpos ypos compression ysize xsize xrel yrel
   0 * 4  0D 00 00 00
-  1 * 7  00 00 01 01 XX 12 FD
-  2 * 4  01 00 01 08
-  3 SPRITES\train.pcx 98 8 01 18 8 -3 -10
-  4 SPRITES\train.pcx 114 8 09 14 20 -14 -6
-  5 SPRITES\train.pcx 146 8 01 12 28 -14 -6
-  6 SPRITES\train.pcx 194 8 09 16 20 -4 -8
-  7 SPRITES\train.pcx 226 8 01 18 8 -3 -10
-  8 SPRITES\train.pcx 242 8 09 16 20 -14 -7
-  9 SPRITES\train.pcx 274 8 01 12 28 -14 -6
- 10 SPRITES\train.pcx 322 8 09 14 20 -4 -6
- 11 * 9  02 00 00 01 01 00 00 00 00
- 12 * 7  03 00 01 XX 00 00 00
+  1 * 8  08 04 XX XX XX XX 00 00
+  2 * 7  00 00 01 01 XX 12 FD
+  3 * 4  01 00 01 08
+  4 SPRITES\train.pcx 98 8 01 18 8 -3 -10
+  5 SPRITES\train.pcx 114 8 09 14 20 -14 -6
+  6 SPRITES\train.pcx 146 8 01 12 28 -14 -6
+  7 SPRITES\train.pcx 194 8 09 16 20 -4 -8
+  8 SPRITES\train.pcx 226 8 01 18 8 -3 -10
+  9 SPRITES\train.pcx 242 8 09 16 20 -14 -7
+ 10 SPRITES\train.pcx 274 8 01 12 28 -14 -6
+ 11 SPRITES\train.pcx 322 8 09 14 20 -4 -6
+ 12 * 9  02 00 00 01 01 00 00 00 00
+ 13 * 7  03 00 01 XX 00 00 00
 ---8<---cut here---8<---
 
-For the XX in sprite #1 and #12 substitute the train engine number you want
+Instead of the XX XX XX XX in sprite #1, use your own graphics ID.  See
+action 8 on how to decide what it should be.
+
+For the XX in sprite #2 and #13 substitute the train engine number you want
 to change, e.g. use 00 to replace the Kirby Paul Tank.
 
 You will probably have to modify the PCX file name, the X and Y coordinates
@@ -916,21 +1030,22 @@ X and Y offsets (last two numbers).  Possibly the X and Y sizes too.
 
 A very brief summary of the pseudo sprites:
  #0: define how many sprites are in the file (13 decimal=0D)
- #1: action 0; set the train engine properties (in this case the sprite)
- #2: action 1; declare the next 8 sprites as actual vehicle sprites
- #3 through #10 are therefore vehicle sprites
-#11: action 2; declare cargo ID 0
-#12: action 3; attach cargo ID 0 to the engine
+ #1: action 8; set the GRFID of this .grf file, and define the version
+ #2: action 0; set the train engine properties (in this case the sprite)
+ #3: action 1; declare the next 8 sprites as actual vehicle sprites
+ #4 through #11 are therefore vehicle sprites
+#12: action 2; declare cargo ID 0
+#13: action 3; attach cargo ID 0 to the engine
 
 If you want to modify the train properties (currently only the sprite
-prop. 12 is set to FD), change the second 01 in sprite #1 to the number of
+prop. 12 is set to FD), change the second 01 in sprite #2 to the number of
 properties, add them at the end of the line, and adjust the number of
 bytes (now 7).
 
 If you want to make it look different depending on cargo, add them after
-sprite #10, and modify sprite #2 appropriately.  Then define more cargo IDs
+sprite #11, and modify sprite #3 appropriately.  Then define more cargo IDs
 using action 2 and tell action 3 when to use which ID.  Don't forget to
-adjust the total number of sprites specified in sprite #0.
+adjust the total number of sprites specified in sprite #1.
 
 
 
