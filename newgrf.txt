@@ -411,7 +411,8 @@ setting property 08, the station ID is strictly undefined and invalid.
 			at least one of bits 0..4 must be set
 	0E	V	Define custom layout, see below
 	0F	B	Copy custom layout from stationid given by argument
-	??	B	Bit mask of track systems available (bits 0..2)
+	10	W	Where to switch from "little" to "lots" of cargo
+			(see action 2)
 
 Class ID:
 
@@ -628,30 +629,36 @@ etc...
 For train stations (feature 4):
 -------------------------------
 
-Data is <02> <04> <set-id> <numtracktypes> <00> <sets...>
+Data is <02> <04> <cargo-id> <numlittlesets> <numlotssets> <sets...>
 
 	B 04		feature 4=train stations
-	B set-id	ID of this station set, for referral by action 3 later
-	B numtracktypes	different track types available
-	B 00		verbatim 00
+	B cargo-id	ID of this definition
+	B numlittlesets	number of different amounts of cargo to show when there
+			is only little cargo waiting
+	B numlotssets	same but for lots of cargo
 	W sets...	Number of sprite set in most recent action 1, for
 			each of the track types
 
-numtracktypes specifies how the various track systems look:
+Like for vehicles, this decides the graphics set to use depending on the
+amount of cargo waiting.  There are two caveats, though.  Firstly, a station
+can have 12 different cargos waiting, not just a single one.  Secondly, the
+maximum amount is 4095 for all stations and all cargo types.
 
- numtracktypes	meaning
-	01	all track types look the same
-	02	two different looks for regular/electrified, monorail/maglev
-	03	three different looks: regular/electrified, monorail, maglev
-	04	four different looks: regular, electrified, monorail, maglev
+Regarding the first issue, the amount of cargo this refers to depends on the
+action 3 that triggered this action 2:
 
-Using variational action 2 entries is valid for stations.  In addition,
-***REWRITE WILL USE CALLBACKS***
-for set-ids used later as a construction-set-id, the variational action 2
-can specifiy a cargo ID of FF FF (-1) to indicate that this particular set
-is not available in the current circumstances (e.g. because of the wrong year,
-snow/desert type etc.).  It will then not be an option that can be chosen with
-the selection buttons.
+- if the cargo type matched exactly, it's the amount of the matching cargo
+  (e.g. the action 3 said "for coal, use this action 2")
+- if the default was used, it's the amount of all cargo types added together
+- if the station is displayed for construction, the maximum amount is shown
+
+Regarding the second issue, TTDPatch introduces the distinction between
+"little" and "lots of" cargo.  The amount where this occurs is set by property
+10, which is zero by default.  But if set to a non-zero value, for example
+200, then the range 0 to 199 is divided by numlittlesets, and the remaining
+range 200 to 4095 is divided by numlotssets.  If property 10 is zero, the
+"little" sets are never used, and so numlittlesets may be zero.  numlotssets
+must never be zero, however.
 
 
 Randomized and variational cargo ID lists:
@@ -883,28 +890,21 @@ Action 3:	Associate cargo IDs with vehicles
 May appear only *after* all corresponding cargo IDs have been
 defined by an action 2 entry in this .grf file.
 
-In general, the format of action 3 is:
-	<03> <feature> <specific-data>
 
-	B feature	see action 1
-	V specific-data	feature specific data, see below
+Data is <03> <feature> <n-id> <ids>... <num-cid> [<cargo-type> <cid>]... <def-cid>
 
-
-For vehicles (features 0, 1, 2 or 3):
--------------------------------------
-
-Data is <03> <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-type> <cid>]... <def-cid>
-
-	B veh-type	see action 0
-	B n-vid		bits 0-6: how many vehicle IDs this definition applies to
+	B feature	see action 0
+	B n-id		bits 0-6: how many IDs this definition applies to
 			bit 7: if set, this is a wagon override definition (see below)
-	B veh-id	the vehicle IDs (counted from the first of its class)
-	B num-vcid	number of vehicle-specific cargo IDs in this definition
+	B ids		the IDs for which this definition applies
+	B num-cid	number of cargo IDs in this definition
 			can be zero, in that case the def-cid is used always
 	B cargo-type	type of this cargo type (e.g. mail=2, wood=7, see below)
 	W cid		cargo ID for this type of cargo
 	W def-cid	default cargo ID
 
+For vehicles, the IDs are the vehicle IDs, whereas for stations they are
+of course the station IDs defined by action 0.
 
 If n-vid has bit 7 set, this action 3 must immediately follow an action 3.
 The engines defined by the first action 3 will then have an override for
@@ -926,26 +926,6 @@ Note that you need to set the wagon's sprite number to FD using action 0,
 or it will only show the default sprite.  You do not need to specify any
 other cargo IDs for these wagons though, they will happily use the default
 sprite if no other definitions exist.
-
-
-For train stations (feature 4):
--------------------------------
-
-Data is <03> <04> <station-id> <in-game-set-id> <construction-set-id>
-
-	B station-id	Station ID as defined by an earlier action 0
-	W in-game-set-id
-			Set ID from an earlier action 2, to be displayed
-			after the station is actually built
-	W construction-set-id
-			Set ID from an earlier action 2 that will be used
-			to display the station orientations in the station
-			construction window
-
-***REWRITE WILL USE CALLBACKS***
-If the construction-set-id is a variational action 2, and specifies a cargo
-id of FF FF (-1), this station will not be available in the construction
-window.
 
 
 Action 4:	Define new vehicle names or other texts.
@@ -1033,7 +1013,7 @@ For a full list of all text IDs, read A. Skrobov's textids.zip in the TTDPatch
 source code page.
 
 Special TTDPatch text IDs:
-	C0xx	Station class name
+	C4xx	Station class name (xx = internal class number)
 	C5xx	New station names
 		Changes the text "number of platforms" into the given text
 		when the station with this ID from the current set is
