@@ -232,6 +232,9 @@ amount between 31 months and 17 years is added to this as well.
 			Bit 2	use callback for load amount (see prop 07)
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
+	1F (3)	B	Coefficient of tractive effort, that is the ratio between
+			maximum tractive effort and weight; FF:TE=W, 80:TE=W/2, etc.
+			default is 4C, for TE=0.3*W (Wadh=W and mu=0.30)
 	21	B	Make vehicle shorter by this amount (e.g. for tenders)
 			00=not shorter, 01=shorter by 12.5%, up to 07=shorter by 87.5%
 			Does not work for the first vehicle in a consist (i.e. the engine)
@@ -316,6 +319,8 @@ Footnotes:
 		* 9  07 8B 04 04 46 00 0A 02 <num-sprites>
 	(2) This property was introduced in 2.0.1 alpha 11, use this action 7:
 		* 9  07 8B 04 04 6E 00 0A 02 <num-sprites>
+	(3) This property was introduced in 2.0.1 alpha 19, use this action 7:
+		* 9  07 8B 04 04 BE 00 0A 02 <num-sprites>
 
 
 Note:
@@ -831,6 +836,7 @@ Data is <03> <04> <station-id> <in-game-set-id> <construction-set-id>
 			to display the station orientations in the station
 			construction window
 
+***REWRITE WILL USE CALLBACKS***
 If the construction-set-id is a variational action 2, and specifies a cargo
 id of FF FF (-1), this station will not be available in the construction
 window.
@@ -936,6 +942,11 @@ Possible values for graphics-type:
 	4  Pre-signal graphics (48 sprites or 112 with semaphores)
 	5  Overhead wires and pylons for electrified railways (xx sprites)
 	6  Foundations (retaining walls) for building on slopes (42 sprites)
+	8  Canal graphics
+
+Action 5 entries in a .grf file which has a regular GRF ID (not FFFFFFFF)
+will always override those from .grf files with a GRF ID of FFFFFFFF (starting
+from 2.0.1 alpha 19).
 
 
 Action 6:	Apply parameter to following pseudo-sprite or sprite.
@@ -989,6 +1000,8 @@ Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 			8B D TTDPatch version
 			8D B TTD Version, 00=DOS, 01=Windows
 			8E D How many pixels to displace sprites in train info windows
+			8F D Track type cost multipliers (4 bytes, 3 of them used,
+			     either RR MR ML or RR EL MR/ML), 08=reference
 			(all other values greater 80 are reserved)
 
 	B param-size	See action 6 (ignored for bit tests, must be 4 for GRFID tests)
@@ -1041,6 +1054,15 @@ Bit numbers for TTDPatch flags (param-num = 85):
 	4C	newagerating
 	4D	buildonslopes
 	4F	planespeed
+	50	moreindustriesperclimate	(this and below values only
+	51	moretoylandfeatures		 available from 2.0.1 alpha 19)
+	52	newstations
+	53	tracktypecostdiff
+	54	manualconvert
+	55	buildoncoasts
+	56	canals
+	57	newstartyear
+	58	freighttrains
 
 Format of the TTDPatch version variable: MMmrbbbb
 	MM is the major version
