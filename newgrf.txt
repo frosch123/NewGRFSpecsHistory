@@ -234,6 +234,7 @@ amount between 31 months and 17 years is added to this as well.
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
 			Bit 3	use callback 15 to find refitted capacity
+			Bit 4	use callback 16 for articulated engines
 	1F (3)	B	Coefficient of tractive effort, that is the ratio between
 			maximum tractive effort and weight; FF:TE=W, 80:TE=W/2, etc.
 			default is 4C, for TE=0.3*W (Wadh=W and mu=0.30)
@@ -286,12 +287,14 @@ amount between 31 months and 17 years is added to this as well.
 			Bit 2	use callback for load amount (see prop 07)
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
+			Bit 3	use callback 15 to find refitted capacity
 	18	B	Max. tractive effort, see prop 1F for trains
 			Default 4C = 30%
 	19	B	Set realistic acceleration air drag coefficient c2,
 			see train prop 20 (but with default values being larger
 			by 2 to account for the smaller cross section of road
 			vehicles)
+	1A (5)	B	Refit cost, using 25% of the purchase price cost base
 
 
 	Properties for ships
@@ -308,6 +311,8 @@ amount between 31 months and 17 years is added to this as well.
 			Bit 2	use callback for load amount (see prop 07)
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
+			Bit 3	use callback 15 to find refitted capacity
+	13 (5)	B	Refit cost, using 1/32 of the default refit cost base
 
 
 	Properties for aircraft
@@ -327,6 +332,8 @@ amount between 31 months and 17 years is added to this as well.
 			Bit 2	use callback for load amount (see prop 07)
 				this callback only happens after loading a game
 				or when buying or moving vehicles in the depot
+			Bit 3	use callback 15 to find refitted capacity
+	15 (5)	B	Refit cost, using 1/32 of the default refit cost base
 
 
 Footnotes:
@@ -341,6 +348,8 @@ Footnotes:
 		* 9  07 8B 04 04 BE 00 0A 02 <num-sprites>
 	(4) This property was introduced in 2.0.1 alpha 27, use this action 7:
 		* 9  07 8B 04 04 0E 01 0A 02 <num-sprites>
+	(5) This property was introduced in 2.0.1 alpha 30, use this action 7:
+		* 9  07 8B 04 04 2C 01 0A 02 <num-sprites>
 
 
 Note:
@@ -433,6 +442,9 @@ all station IDs must have their class set in order, starting from ID 00.
 	10	W	Where to switch from "little" to "lots" of cargo
 			(see action 2)
 	11	B	Bit mask of tile types (0..7) for which to draw pylons
+	12	D	Bitmask of cargo types that should trigger cargo
+			triggers (for random graphics); if this is zero no
+			triggers at all will be activated to conserve CPU time
 
 Class ID:
 
@@ -442,25 +454,18 @@ individual stations within the class from the bottom two buttons.  In addition,
 each station can alter its appearance using variational and/or random action 2
 entries.
 
-Eventually, it'll be possible to define new classes, currently the proposed
-classes are the following:
-
- A  B  C  D  E	F  G  H  I  J  K  L  M  N  O  P  Q  R  S  T  U  V  W  X  Y  Z
-41 42 43 44 45 46 47 48 49 4A 4B 4C 4D 4E 4F 50 51 52 53 54 55 56 57 58 59 5A
+There can be up to 16 different classes at the moment, which are defined
+simply by defining new stations for them.  Only two classes are pre-defined:
 
 	Name	Class ID	Intended use for station
 	DFLT	44 46 4C 54	Default, no special station type
-
-Later, the following will probably be available:
-	CITY	43 49 54 59	City stations
-	PRIM	50 52 49 4D	Primary industries (producing raw material)
-	SECO	53 45 43 4F	Secondary industries (processing industries)
-	ACCE	41 43 43 45	Accepting industries (no production, e.g. power plant)
-	MULT	4D 55 4C 54	Multi-modal stations (e.g. large harbours)
 	WAYP	57 41 59 50	Non-cargo stations, waypoints, signal boxes etc.
 
-Later, the game might even display the most appropriate class depending on what
-station is being built.
+WAYP stations will never accept or receive any cargo, and trains with WAYP
+stations on their orders will not stop there, independent of the "nonstop"
+patch switch.  When combining WAYP and non-WAYP platforms or non-train station
+facilities, the first one that is built determines the waypoint status.
+
 
 Sprite layout:
 
@@ -761,13 +766,25 @@ Random triggers for vehicles:
 	later, each vehicle will be re-randomised individually.
 
 Random triggers for stations:
-	none at the moment
+	01	new cargo waiting
+	02	no more cargo
+	04	train arrives (starts unloading/loading)
+	08	train leaves (done unloading & loading)
+	10	train loads or unloads cargo
 
-	Note that stations have two sets of random bits.  Bits 0 to 15 are
+	Note that stations have two sets of random bits.  Bits 0 to 7 are
 	a property of the station as a whole, and bits 16 to 19 are different
 	for each tile.  To get tile-based randomness, therefore use randbit=10
 	and nrand of no more than 16 (since only 4 random bits are available
 	per tile).
+
+	Also note that none of the above triggers will actually trigger unless
+	prop. 12 has at least one bit set.  Trigger 01 will be triggered for
+	any of the cargo types set in prop. 12, but trigger 02 will only be
+	triggered if all of those cargo types have no more cargo waiting.
+
+	Triggers 04, 08 and 10 only affect the platform on which they occur,
+	as well as the random bits of the station, but not other platforms.
 
 Random triggers for cities:
 	none at the moment
@@ -824,6 +841,7 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			0A animation counter, a word value, incremented every tick
 			0C current callback ID (feature-specific), set to 00
 			   when not in a callback
+			10 articulated engine build stage
 			40+x and
 			80+x feature-specific property, see below
 	V varadjust	adjust variable to a more useful range; either
@@ -872,11 +890,25 @@ Callback IDs stored in variable 0C:
 				regular types 00..07.  Return only even
 				numbers, the odd even/ones will be used for
 				the appropriate direction
-	15	trains (atm)	refitted capacity.  Veh. var B9 will be the
+	15	all vehicles	refitted capacity.  Veh. var B9 will be the
 				new, climate-specific cargo type or FF when
 				only checking for refittability.  The return
 				value is not subject to the usual division
 				of capacities for cargos other than passengers.
+	16	trains		articulated engines.  If this callback is in
+				use, additional vehicles will be added to the
+				engine until the callback returns FF.  The
+				callback return is interpreted as the ID of
+				the vehicle to add.  If 80 is added to the ID,
+				the vehicle will be reversed.  Note that
+				since the train is not yet built, you cannot
+				use train variables in action 2.  Instead,
+				use variable 10, which is set to 01 for the
+				first articulated part, 02 for the second
+				and so on.  Note that the cost for buying and
+				selling articulated engines is only that
+				for the first piece as displayed in the purchase
+				screen.
 
 
 For all features, the 80+x variables are offsets into the corresponding
