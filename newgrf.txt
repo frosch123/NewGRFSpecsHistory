@@ -85,6 +85,7 @@ The following actions can be specified:
 	B	Show error or warning messages
 	C	Do nothing (useful as comments)
 	D	Set parameters
+	E	Deactivate other .grf file
 
 
 The format of the data of each action is different depending on the action,
@@ -397,6 +398,9 @@ useful or not :)
 
 	Properties for stations
 	08	D	Class ID, see below
+	09	V	Sprite layout, see below
+	0A	B	Copy sprite layout, copies sprite layout from stationid
+			given by the argument to the stationid given by the offset
 	??	B	Maximum platform length supported (1)
 	??	B	Maximum number of platforms supported (1)
 	??	W	Bit mask of disabled platform lengths (bits 1..15)
@@ -405,6 +409,13 @@ useful or not :)
 	??	B	Type of station: 00=regular, 01=waypoint (won't accept cargo), ...
 	??	B	Layout type, 00=TTD default, FF=custom layout
 	??	V	Define custom layout
+
+Footnotes:
+	(1) By default, any number and length are available; as many as are
+	    currently supported for regular TTD stations.  At the moment, this
+	    means up to 15x15, though only 14x15 or 15x14 can actually be built.
+
+Class ID:
 
 TTDPatch groups sets of new station graphics into various classes.  The classes
 can be selected by the top row of buttons in the construction window, and the
@@ -432,11 +443,78 @@ Later, the following will probably be available:
 Later, the game might even display the most appropriate class depending on what
 station is being built.
 
+Sprite layout:
 
-Footnotes:
-	(1) By default, any number and length are available; as many as are
-	    currently supported for regular TTD stations.  At the moment, this
-	    means up to 15x15, though only 14x15 or 15x14 can actually be built.
+This controls what sprites are displayed, where they are displayed, and in
+what order.  The property is variable sized, and contains the data for
+all 8 possible station tile types.  If this property is set, the num-ent in
+the corresponding action 1 need not be equal to 12 (hex), it can in fact be
+any number, and any number of sprites can be displayed in any order.
+
+The data is specified as data for all eight tiles in this way:
+
+	<data1> <data2> ... <data8>
+
+The content of each of the eight data sets is:
+	D groundsprite	the sprite to draw for the rails; this can only be
+			a TTD sprite and can't be replaced by new sprites
+	V spritedata	the data for station sprites, see below; each has
+			a size of 10 bytes, and there may be several
+	B 80		a literal 80 ends the list of sprites for this tile
+
+One can draw two types of sprites.  One type is one that establishes a new
+3D bounding box for use by the sprite sorter.  The other type shares the 3D
+bounding box of the previous sprite(s).  It must not be larger than the
+sprite which established the bounding box, nor must any part of it be outside
+this box.  For simplicity, it should have the exact same dimensions as the
+sprite it shares the bounding box with.  The latter type is not supported
+in the station construction window display.
+
+The spritedata of sprites with their own bounding box has this format:
+	B xofs		x-offset from northern tile corner
+	B yofs		y-offset from northern tile corner
+	B zofs		z-offset from northern tile corner
+	B xextent	size of sprite in x direction
+	B yextent	size of sprite in y direction
+	B zextent	size of sprite in z direction
+	D sprite	sprite number to draw
+
+The spritedata of sprites sharing the bounding box has this format:
+	B xofs		x-offset relative to previous sprite
+	B yofs		y-offset relative to previous sprite
+	B 80		a literal 80
+	B 00 		(ignored)
+	B 00 		(ignored)
+	B 00 		(ignored)
+	D sprite	sprite number to draw
+
+The sprite number can have the following values (remember to use little endian,
+i.e. reversed byte order):
+	0000042D+X	use sprite X from the corresponding action 1 block
+			(i.e. 0000042D for the first, 0000042E for the
+			second, etc.)
+	0000842D+X	same, but draw it using company colour translation
+	0322442D+X	same, but draw in transparent mode (actual colours
+			of the sprite are disregarded entirely); not supported
+			in station construction window display
+
+
+Note that the coordinates here are 3D coordinates with x running from
+top-right to bottom-left and y running from top-left to bottom-right.  This
+is different to and independent from the x/y offsets used in the actual .NFO
+file.  The 3D bounding box is used by TTD's sprite sorter to figure out the
+order in which to draw the sprites, as well as telling it which sprites to
+draw, because those whose bounding box falls outside the currently updated
+screen rectangle will not be drawn.  Make sure the 3D bounding box is large
+enough to contain the entire sprite, but not so large that the sprite sorter
+can't determine which sprites should be in front.
+
+This means that the order in which you specify sprites is irrelevant.  Sprites
+will get drawn from back to front, in the order which the sprite sorter
+determines as correct, from their bounding boxes.  The only exception is
+sprites sharing the same bounding box, which will always be drawn in the given
+order.
+
 
 Action 1:	Define new vehicle sprite blocks.
 ~~~~~~~~~
@@ -926,6 +1004,12 @@ calculated as string_class + string_entry_num.  These classes exist in TTD:
 For a full list of all text IDs, read A. Skrobov's textids.zip in the TTDPatch
 source code page.
 
+Special TTDPatch text IDs:
+	C5xx	New station names
+		Changes the text "number of platforms" into the given text
+		when the station with this ID from the current set is
+		selected (i.e. xx=station-id from action 3 and 0)
+
 
 Action 5:	Define new non-vehicle sprite blocks.
 ~~~~~~~~~
@@ -1369,6 +1453,37 @@ you must not modify newgrf(w).cfg parameters with any kind of irreversible
 operation.  It is valid to, for example, add a value to a parameter only if
 the same value is later subtracted, to keep the parameter the same across
 loading or starting several games.
+
+
+Action E:	Deactivate other GRF file
+~~~~~~~~~
+
+This action can be used to deactivate an earlier, incompatible version of
+a GRF file, or any other GRF file in general.
+
+Data is <0E> <num> <grfids...>
+
+	B num		Number of GRFIDs that follow
+	D grfids	GRFIDs of the files to deactivate
+
+Normally, graphics files should use action 7 to deactivate themselves, if
+they find that other incompatible graphics have been loaded.
+
+However, when new sets come out, it is often not feasible to change all
+existing sets so that they can detect the new set.  This action therefore
+allows the new graphics set to deactivate older sets with which it is
+incompatible.
+
+Note that it is invalid to attempt the deactivation of already active
+graphics files.  You can only prevent files lower down the newgrf(w).cfg from
+becoming active later. Therefore, you must check that none of the GRF IDs in
+this list are active already using the appropriate action 7.  If the
+deactivation of an already active set is attempted, the current set (i.e. the
+one containing the action E) is considered invalid and will be disabled.
+
+To handle the cases of incompatible sets being loaded and activated earlier,
+you can either attempt to overwrite all their settings and graphics, or
+simply deactivate this set in turn.
 
 
 4)  General information and hints and tips
