@@ -1117,7 +1117,7 @@ For a full list of all text IDs, read A. Skrobov's textids.zip in the TTDPatch
 source code page.
 
 Special TTDPatch text IDs:
-	C4xx	Station class name (xx = internal class number)
+	C4xx	Name of station class associated with station ID xx
 	C5xx	New station names
 		Changes the text "number of platforms" into the given text
 		when the station with this ID from the current set is
