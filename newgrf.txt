@@ -403,6 +403,7 @@ setting property 08, the station ID is strictly undefined and invalid.
 	0B	B	Callback flags
 			Bit 0	use callback to decide whether to make station
 				available in construction menu
+			Bit 1	use callback to decide on tile type to draw
 	0C	B	Bit mask of disabled numbers of platforms (bits 0..6, 7),
 			bit 7 applies for all lengths above 7 (i.e. "+" button)
 			at least one of bits 0..3 must be set
@@ -450,9 +451,17 @@ all 8 possible station tile types.  If this property is set, the num-ent in
 the corresponding action 1 need not be equal to 12 (hex), it can in fact be
 any number, and any number of sprites can be displayed in any order.
 
-The data is specified as data for all eight tiles in this way:
+The data is specified in this way:
 
-	<data1> <data2> ... <data8>
+	<num> <data1> <data2> ... <datan>
+
+Here, the meaning is
+	B num		Number of different tiles supported
+			Normally this is 8, but you can specify fewer as well
+			Using callback bit 1, specifying more makes sense too
+			If not equal to 8, this value must be the same for
+			all stations set by this action 0
+	V data1...	The variable size data for each tile, specified below
 
 The content of each of the eight data sets is either a new sprite layout:
 
@@ -815,6 +824,10 @@ Callback IDs stored in variable 0C:
 	13	stations	checking whether station should be available
 				in construction menu (non-zero return) or
 				not (if callback returns 0)
+	14	stations	which tile type to draw, independent of the
+				actual tile type; this allows more than the
+				regular types 00..07
+
 
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
@@ -842,10 +855,17 @@ Vehicle properties for the variable:
 	    additional engines.
 
 Station properties:
-	40	returns NNLLCCPP, where NN is the number of platforms,
-		LL is their length, CC is the platform number currently being
-		drawn, and PP is the position along this platform.  CC and PP
-		start counting from zero at the northern most corner
+	40	returns NNLLcCpP, where NN is the number of platforms,
+		LL is their length, C is the platform number currently being
+		drawn, and P is the position along this platform.  On the other
+		hand, c and p are the same as C and P but counted from the end.
+		All of C, P, c and p start counting from zero at the first
+		respectively last platform/position.
+
+	41	same as 40, but returning those number not for the whole
+		station but instead for each individually built section
+		this variable is only valid for stations built in 2.0.1 alpha 26
+		or later
 
 	80+x	x is the offset into the station structure minus 10h, see
 		struc station in ttdprot.ah, for example
