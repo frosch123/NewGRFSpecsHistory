@@ -1,9 +1,9 @@
 How to define new graphics
 ==========================
 
-The new graphics are controlled by newgrf.txt, which is simply a list
-of .grf files to include.  Each .grf file can then define graphics for
-one or more vehicles.
+The new graphics are controlled by newgrf.txt (newgrfw.txt for Windows),
+which is simply a list of .grf files to include.  Each .grf file can 
+then define graphics for one or more vehicles.
 
 In this document, you can find out how to define new sprites and
 control how they are displayed.
@@ -78,6 +78,7 @@ The following actions can be specified:
 	6	Apply newgrf.txt parameter to following sprite data
 	7	Skip following sprites if condition is true
 	8	Define the GRF ID, description and copyright info
+	9	Skip following sprites even during initialization
 
 
 The format of the data of each action is different depending on the action,
@@ -152,7 +153,6 @@ Vehicle life is the life of a vehicle before it needs to be replaced.
 Engine life determines how long an engine is available for sale (without
 using persisentengines).
 
-
 	Properties for trains
 	05	B	track type (0=railroad, 1=monorail, 2=maglev)
 	08	B	AI special flag: set to 1 if engine is 'optimized' for
@@ -207,7 +207,8 @@ using persisentengines).
 	0C	B	Default cargo type
 	0D	W	Capacity
 	0F	B	Running cost factor
-	10	D	Bit mask of cargo types available for refitting
+	10	B	Sound effect type (4=cargo ship, 5=passenger ship)
+	11	D	Bit mask of cargo types available for refitting
 
 
 	Properties for aircraft
@@ -215,7 +216,8 @@ using persisentengines).
 	09	B	Is helicopter? 2=no, 0=yes
 	0A	B	Is large? 0=no, 1=yes (=can't safely land on small airports)
 	0B	B	Cost factor
-	0C	W	Speed
+	0C	B	Speed
+	0D	B	Acceleration
 	0E	B	Running cost factor
 	0F	W	Passenger capacity
 	11	B	Mail capacity
@@ -245,7 +247,7 @@ action 0 entry.  For example, the following entry:
    0B	45	52	49	6C	E0	55	4D	45	4A	52	4A
    0C	03	03	00	00	00	0C	04	05	06	05	07
    0D	2C 01	C2 01	64 00	F4 01	64 00	18 01	68 01	BE 00	68 01	C2 01	68 01
-   10	08 00 00 00
+   11	08 00 00 00
 	08 00 00 00
 	05 00 00 00
 	01 00 00 00
@@ -285,7 +287,7 @@ Action 2:	Define cargo IDs or randomized/variational cargo ID lists
 ~~~~~~~~~
 
 May appear only *after* the sprite block (action 1) it corresponds
-to, and not after any other sprite block.
+to.  It always refers to the most recent sprite block.
 
 Data is <veh-type> <cargo-id> <num-loadtypes> <num-loadingtypes> <loadtypes...>
 
@@ -373,7 +375,7 @@ Data is <veh-type> <cargo-id> <80> <random-type> <nrand> <randbit> <cargo-IDs...
 	the current graphics, so if there are several random lists in a
 	chain, only the triggers of the chain that defines the current
 	graphics matter.  To be on the safe side, always have identical
-	triggers in the final random list of a chain.
+	triggers in all final random lists of a chain.
 
 For num-loadtypes 81:	list of variational but deterministic cargo IDs
 
@@ -391,16 +393,15 @@ Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
 			00 current date (counted as days from 1920)
 			01 current year (count from 1920, max. 2175 even with eternalgame)
 			02 current month
-			03 current climate
+			03 current climate, 0=temp, 1=arctic, 2=trop, 3=toyland
 			80+x vehicle property (where x is the offset in veh struct)
 			for example,
 			B4 current vehicle speed (speed is at 34) [1]
 			C0 vehicle age in days (age is at 40)
 			C4 year built (counted from 1920)
-	B shift-num	is a number of bits that the variable is right-shifted
-	B AND-mask	is a bit-mask to AND the value of the variable with
-			after shifting it
-			use FF to leave all bits as they are
+	B shift-num	number of bits to right-shift the variable by
+	B AND-mask	bit-mask to AND the value of the variable with after
+			shifting it; use FF to leave all bits as they are
 	B nvar		how many different ranges of values there are
 
 	W cargo-ID	cargo-ID to use for this range of values
@@ -408,7 +409,8 @@ Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
 	B high-range	upper bound of the range of values
 
 	W default-cid	default cargo ID to use if none of the ranges
-			below matches
+			below matches; must be specified even if the ranges
+			cover all possible values
 
 	When displaying vehicle in the purchase list, the game will show
 	those variations based on external variables (dates etc.) correctly,
@@ -434,7 +436,7 @@ Data is <veh-type> <cargo-id> <81> <variable> <shift-num> <AND-mask>
 	[1] Note that the unit of the speed depends on the vehicle type
 	    For trains: in mph/1.6
 	    For road vehicles and ships: in mph/3.2
-	    For planes: in mph
+	    For planes: in mph*8
 	    Also this is only valid for the first engine, not wagons or
 	    additional engines.
 
@@ -451,6 +453,7 @@ Data is <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-type> <cid>]... <def-c
 			bit 7: if set, this is a wagon override definition (see below)
 	B veh-id	the vehicle IDs (counted from the first of its class)
 	B num-vcid	number of vehicle-specific cargo IDs in this definition
+			can be zero, in that case the def-cid is used always
 	B cargo-type	type of this cargo type (e.g. mail=2, wood=7, see below)
 	W cid		cargo ID for this type of cargo
 	W def-cid	default cargo ID
@@ -523,7 +526,7 @@ Data is <graphics-type> <num-sprites> <other data...>
 	B other data	Graphics type specific data.  Not defined yet.
 
 Possible values for graphics-type:
-	4  Pre-signal graphics (48 sprites)
+	4  Pre-signal graphics (48 sprites or 112 with semaphores)
 	5  Overhead wires and pylons for electrified railways (xx sprites)
 
 
@@ -551,7 +554,8 @@ a literal "FF" to indicate the end of the list, as TTDPatch cannot
 easily determine the length of a pseudo-sprite.
 
 This action is processed only in the initialization of a .grf file and
-is ignored during the activation.
+is ignored during the activation.  Therefore, to conditionally skip this
+action, you must use action 9 and not action 7.
 
 
 Action 7:	Skip next n sprites if condition is true.
@@ -564,12 +568,11 @@ Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 	B param-num	See action 6
 			Additionally, the following values test in-game
 			variables:
-			83 B current climate[2]
+			83 B current climate, 0=temp, 1=arctic, 2=trop, 3=toyland
 			84 B .grf loading stage, 0=initialization, 1=activation
+			85 * TTDPatch flags, only for bit tests, see common.h
+			     for bit numbers (you can test all 128 bits)
 			(all other values greater 80 are reserved)
-			Notes:
-				[1] Only valid during initialization
-				[2] Only valid during activation
 	B param-size	See action 6 (ignored for bit tests)
 	B condition-type
 			What condition to test for:
@@ -600,11 +603,11 @@ Action 8:	Define GRF ID
 Must be the first pseudo-sprite of a .grf file except for one or more
 action 7 entries that may (and probably should) come before it.
 
-Data is <version> <grf-id> <<description> <copyright>
+Data is <version> <grf-id> <description> <copyright>
 
 	B version	newgrf version, currently 01
 	4*B grf-id	globally unique ID of this .grf file
-	S description	description of the contents of this .grf file,
+	S description	description of the contents of this .grf file
 	S copyright	copyright string describing the author and copyright
 
 This action is currently optional, but will be mandatory starting from the
@@ -650,7 +653,7 @@ Optionally you can follow with your contact info and any other
 information you want to include in the .grf file.
 
 *Note, the ID checking and grf (de)activation does not work yet as
-of 1.9.1 alpha 31*
+of 1.9.1 alpha 35*
 
 Newgrf version table
 
@@ -659,6 +662,18 @@ version	with		TTDPatch version
 00	00		1.9.1 alpha 27 and earlier
 01	00-01		1.9.1 alpha 28 and above
 02-FF	- not defined yet -
+
+
+Action 9:	Skip next n sprites if condition is true.
+~~~~~~~~~
+
+This action is the same as action 7, except that it isn't skipped during
+initialization.  This means it is only safe to use it to skip an action 6
+entry.  For all others, you must use action 7, or they will not be
+initialized properly.  This is especially true of action 2 (cargo IDs) and
+action 3 (sprite IDs), which need to be resolved during initialization.
+If you skip action 2 or 3 using action 9, the graphics will be incorrect.
+
 
 
 4)  General information and hints and tips
@@ -715,7 +730,7 @@ b) General strategy for implementing new graphics in the .grf file:
 3) After the action 7 entries, define your GRF ID with action 8.
 4) Then define one or several action 0 entries, that (possibly among other
    things) set the vehicle sprite IDs to FD (trains) or FF (all other vehicle
-   types).  Only vehicles with the sprite IDs will be using the new sprites.
+   types).  Only vehicles with these sprite IDs will be using the new sprites.
 5) Start a block of new graphics with an action 1 (sprite block) entry,
    followed by the actual sprite data.  Ideally, you put the graphics of all
    vehicles together in this one sprite block, taking note of what sets of
@@ -727,17 +742,6 @@ b) General strategy for implementing new graphics in the .grf file:
    specify what cargo IDs are to be shown for which vehicle and which cargo
    types.
 
-Note that there may be *no* action 1 between the final action 3 for that
-sprite block.  The order must always be
-
-	Action 1
-	(Sprite block)
-	Action 2 (possibly several)
-	Action 3 (possibly several)
-
-After that, you can have a new action 1 and another sprite block, with its
-own action 2 and action 3 entries in the above order.
-
 
 
 c) Dealing with the sprite numbers and pseudo-sprite blocks
@@ -745,7 +749,11 @@ c) Dealing with the sprite numbers and pseudo-sprite blocks
 It can be quite a chore to make sure that the sprite numbers increase
 by one, and that you have the correct length for the pseudo-sprite blocks.
 Currently, GRFCodec has only limited parsing capabilities, so you need to
-make sure that they are indeed correct.
+make sure that they are indeed correct.  Note that as of GRFCodec version
+0.9.4, you can specify a sprite number of "-1", which turns off the number
+checking for that sprite.  The following sprites still need correct numbers
+(unless they also have "-1" as the number), and the sprite length still 
+needs to be specified.
 
 One help in this task is a Perl script called renum.pl, which you can find
 in this directory.  If you haven't heard of Perl before, it's a powerful
@@ -788,7 +796,7 @@ e) The two stages of loading a .grf file
 
 Every .grf file is processed in two stages.  The first stage, initialization,
 is run only once.  In this stage, TTDPatch records the GRF IDs, and resolves
-all cargo IDs and sprite IDs.
+all cargo IDs and sprite IDs as well as doing some other bookkeeping tasks.
 
 During initialization, actions 0, 3, 4, 5 and 7 are ignored.  Action 6 is
 carried out *only* during initialization.  Action 7 is ignored because
@@ -801,7 +809,7 @@ a game is loaded, only its active .grfs will be reactivated, unless
 action 8 has been processed, i.e. its action 8 hasn't been skipped using
 an action 7.
 
-During activation, only actions 0, 3, 4, 5, 7 and 8 are carried out.  All
+During activation, only actions 0, 3, 4, 5, 7, 8 and 9 are carried out.  All
 others are ignored, because they only need to be processed once at
 initialization.
 
