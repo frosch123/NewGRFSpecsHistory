@@ -224,7 +224,7 @@ amount between 31 months and 17 years is added to this as well.
 	09	B	Is helicopter? 2=no, 0=yes
 	0A	B	Is large? 0=no, 1=yes (=can't safely land on small airports)
 	0B	B	Cost factor
-	0C	B	Speed
+	0C	B	Speed in mph*8
 	0D	B	Acceleration
 	0E	B	Running cost factor
 	0F	W	Passenger capacity
