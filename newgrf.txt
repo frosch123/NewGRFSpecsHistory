@@ -1875,6 +1875,8 @@ Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 				5  param is greater than value
 				6  GRFID is active (only for param-num=88)
 				7  GRFID is not active (only for param-num=88)
+				8  GRF ID is not active yet but will be 
+				   activated (only for param-num=88)
 	V value		Bit number (a byte), or value to compare with
 			If a value is not a bit number, it has as many bytes
 			as the param-size specifies.
