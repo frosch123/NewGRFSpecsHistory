@@ -791,7 +791,8 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 			Bit 2		use callback 1B to periodically start/stop the animation
 			Bit 3		use callback 1C to change animation state when
 					the construction state cahnges
-			Callback flags are ignored for additional building tiles.
+			Bit 4		use callback 1E to decide the color of the building
+			Bit 0 is ignored on additional building tiles
 	15	B	House override byte. Setting this property makes this building appear
 			instead of the given old TTD building type. Setting the property is
 			ignored if the given old house type is already overriden. You can
@@ -852,6 +853,16 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 			as 2, so the default is the fastest possible setting. The maximum is 16, which
 			means 1769 seconds (approx. half an hour) delay. Settings above this value
 			may cause strange behaviour.
+	1C	B	Class of the building type. Types that were given the same class byte are
+			considered to be in the same class. If you don't explicitly set this value,
+			the type is considered to have no class (it won't be considered to be class
+			0). The scope of a class is the current GRF file, so two types are never in
+			the same class if they were defined by different GRF files. Currently, this
+			property affects variable 44 only.
+			This property is a per-tile one, you can set it for additional tiles as well.
+			It's a better idea, however, to set it for the main tile only, since var.
+			44 counts tiles, not buildings, and you may count multi-tile multiple times
+			otherwise.
 
 For global variables (feature 8):
 ---------------------------------
@@ -869,6 +880,34 @@ These will be set as long as any of the new graphics features are enabled.
 			the game is saved or loaded (but these will only be
 			noticable after many inflation steps)
 
+For industry tiles (feature 9):
+-------------------------------
+
+Industry tiles work similarly to town buildings, except that they are not stand-alone. This
+means an industry tile can't stand alone, it's always part of an industry. Since you can't
+define new industries or industry layouts yet, the only way to display these tiles is to
+override an old tile using property 9. When defining new industries becomes possible, you
+will be able to define their layout using old tiles and previously defined new tiles.
+
+	Properties for industry tiles
+	number	size	property
+	08		B	Substitute tile type. This tile type will be
+				used instead of your new one if your definition isn't
+				available for any reason. Valid values are 00h-AEh.
+				Assigning this property copies the properties of the
+				old type just like it does with houses.
+
+	09		B	Industry tile override. Works like the house override
+				property for houses. Currently this property is the
+				only way to make the tile appear in the game.
+
+	0A,0B,0C	W	Tile acceptance. These three words define what cargoes
+				the tile accepts, and how much of them. The low byte
+				defines the type of the cargo according to the current
+				climate, while the high byte defines the degree of
+				acceptance in 1/8 units. If you don't need all three
+				cargo types, just zero out the high byte of the
+				extra properties.
 
 Action 1:	Define new vehicle sprite blocks.
 ~~~~~~~~~
@@ -889,7 +928,7 @@ Data is <01> <feature> <num-sets> <num-ent>
 				different sprites that make up a station
 			For canals, it depends on the canal feature, 
 				see action 3
-			For houses, this should be between 1 and 4.
+			For houses and industry tiles, this should be between 1 and 4.
 				Sprites after the first four are always ignored.
 				see action 2 and 3
 
@@ -1006,13 +1045,13 @@ You will note that this is the same format as for vehicles, but specifying
 only a single action 1 set ID to use for the particular canal feature.
 
 
-For town buildings (feature 7):
--------------------------------
+For town buildings and industry tiles (features 7,9):
+-----------------------------------------------------
 
-Data is <02> <07> <set-id> 00 <groundsprite> <buildingsprite> <xoffset>
+Data is <02> <07/09> <set-id> 00 <groundsprite> <buildingsprite> <xoffset>
 	<yoffset> <xextent> <yextent> <zextent>
 
-	B 07			feature 7=town buildings
+	B 07/09			feature 7=town buildings or 9=industry tiles
 	B set-id		ID for this definition
 	B 00			Literal 0 (to distinguish this definition from random/variational lists)
 	D groundsprite		Ground sprite for the building (see format below)
@@ -1067,9 +1106,17 @@ The ground and building sprite fields have the following format:
 			used, for example, on the vehicles, while "brownish red"
 			means the "magic" color used on some town buildings
 			( on the tall office block, for example).
-			If this field is zero, but recoloring is turned on in
-			bits 14-15, one of the colors specified in property 17
-			will be chosen randomly.
+			Houses: If this field is zero, but recoloring is turned on in
+			bits 14-15, there are two possiblities:
+
+				- If you have callback 1E enabled, it is called to
+				  determine the color mapping.
+				- If callback 1E is disabled or fails, one of the
+				  colors specified in property 17 will be chosen randomly.
+
+			Industry tiles: If this field is zero, but recoloring is turned on in
+			bits 14-15, the color of the containing industry will automatically
+			be applied.
 	Bit 31:		If clear, the bottom 14 bits is a regular TTD sprite number. If set,
 			the bottom 14 bits is a number of a sprite set in the most recent action 1,
 			and the used sprite is decided according to the current construction state
@@ -1198,6 +1245,13 @@ Random triggers for town buildings:
 	of a multi-tile building have trigger 1 set, all tiles will be randomized
 	individually. Note that all tiles of a multi-tile building
 	get the same value when building the building.
+
+Random triggers for industry tiles:
+	01	the building tile is processed in the periodic tile
+		processing loop
+
+	Trigger 1 works similarly to trigger 1 for houses except that you
+	cannot multiply the timeout: it's always 256 ticks
 
 When displaying vehicles in the purchase list, the game will always
 show the first cargo-ID listed, not a random one.
@@ -1385,6 +1439,11 @@ Callback IDs stored in variable 0C:
 				disallow attaching with the standard message,
 				FE to allow attaching, or FF to allow attaching
 				if the rail types match.
+	1E	town buildings	Called to decide what color mapping the building
+				should use. Should return the number of the color mapping
+				to be used. (For example, 775 for blue->dark blue mapping)
+				Can be useful if you want something more complex than four
+				random colors.
 
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
@@ -1472,7 +1531,13 @@ Station properties:
 		7A	date station was built
 
 Town properties:
-	40+x	none defined at the moment
+	40	Returns how the "largertowns" switch affects this town
+			0 means largertowns is enabled, but it won't
+			  allow this town to grow larger than usual
+			1 means largertowns is enabled, and it allows
+			  to grow this town larger
+			2 means largertowns is disabled, so no towns
+			  are allowed to grow larger
 
 	80+x    x is the offset into the town structure, see struc town
 		in ttdprot.ah, for example
@@ -1516,15 +1581,18 @@ Town building properties:
 
 	43	Ground type, the same as for canals
 
-	44	Returns dword rrrrCCcc, where cc means how many buildings
+	44	Returns dword LLllCCcc, where cc means how many buildings
 		of the current type can be found in the current town, while
-		CC is the same for the whole map. Overridden old types
-		are considered to be the new type they were overridden with.
-		During callback 17, the current building isn't on the map yet,
-		and therefore isn't counted. In other cases, the building count
-		is at least one, since the current building is counted as well.
-		The two rr bytes are reserved for future use, use a bit mask
-		to get rid of them for now.
+		CC is the same for the whole map. ll and LL are similar to
+		cc and CC, but contain the number of tiles that have the
+		same class as the current one. For tiles that have no class,
+		ll and LL are always zero. Overridden old types	are considered
+		to be the new type they were overridden with. During callback 17,
+		the current building isn't on the map yet, and therefore isn't
+		counted. In other cases, the building count is at least one,
+		since the current building is counted as well.
+		ll and LL are available in alpha 42 vcs 2 and above only,
+		the high word is undefined for older versions.
 
 	45	Town expansion bits
 		Bit 0:		Set if TTD is currently creating a random town,
@@ -1551,6 +1619,14 @@ Town building properties:
 	80+x	None defined, and none ever will because town buildings
 		don't have an internal structure. Trying to access these
 		variables crashes TTD.
+
+Industry tile properties:
+	40	Construction state of the tile: a value between 0 and 3.
+	41	Ground type, the same as canals
+	42	Current town zone of the tile in the nearest town
+		(which is not necessarily the founder town of the industry).
+		Zero if the tile isn't in a town. This is mostly useful
+		for banks and other urban industries.
 
 Please note that, unlike random graphics, changes of deterministic
 building graphics don't automatically redraw the building (except when
@@ -1613,7 +1689,7 @@ house IDs, and specifying a house ID that haven't been defined before
 (by setting its property 08) doesn't do anything, but doesn't cause an
 error, either. Note that you don't necessarily have to assign a cargo
 ID to a house ID, the old TTD sprite of the substitute type will be
-used if you don't do so.
+used if you don't do so. Industry tile IDs work in the same manner.
 
 If n-vid has bit 7 set, this action 3 must immediately follow an action 3.
 The engines defined by the first action 3 will then have an override for
@@ -1652,8 +1728,8 @@ IDs	numsprites	Description
 03	01 (1)		Icons
 04	04 (4)		Flat docks
 
-Note that canals and town buildings do not have any cargo, so you must use
-num-cid=00 and only specify the default action 2 ID.
+Note that canals,town buildings and industry tiles do not have any cargo,
+so you must use num-cid=00 and only specify the default action 2 ID.
 
 Action 4:	Define new vehicle names or other texts.
 ~~~~~~~~~
@@ -1771,6 +1847,7 @@ Possible values for graphics-type:
 	4  Pre-signal graphics (48 sprites or 112 with semaphores)
 	5  Overhead wires and pylons for electrified railways (xx sprites)
 	6  Foundations (retaining walls) for building on slopes (42 sprites)
+	7  GUI Sprites (3 sprites, sizer, pin and pushed pin)
 	8  Canal graphics
 
 Action 5 entries in a .grf file which has a regular GRF ID (not FFFFFFFF)
