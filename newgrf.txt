@@ -118,18 +118,6 @@ be needed for actual sprites, and if the number is too low, the last
 few sprites will have to be skipped, which may confuse TTDPatch.
 
 
-NOTE TO SELF:
-When making the next incompatible change to the .grf files, do this:
-- change numbers in action 5; they can start at 0 now
-- text definition needs to refer to the original veh.ID; not the
-  one from the newgrf.txt file.  Modify action 3 accordingly (store real
-  veh.ID), and patch the action 4 handler
-- or: store all languages in the .grf file
-- or: allow ttdpttxt.txt to overwrite any vehicle name, somehow
-- instead of using suffix "w" for windows grf files, use directory newgrfw
-  for windows and newgrf for dos
-
-
 3)  Pseudo-sprite actions
 -------------------------
 
@@ -170,8 +158,8 @@ using persisentengines).
 	09	W	Speed in mph*1.6 (0 for wagons)
 	0B	W	Power (0 for wagons)
 	0D	B	Running cost factor (0 for wagons)
-	0E	D	Running cost base (for engines either 4C30, 4C36
-			or 4C3C, 0 for wagons)
+	0E	D	Running cost base; for engines either 4C30 (steam),
+			4C36 (diesel) or 4C3C (electric); 0 for wagons
 	12	B	Sprite ID (FD for new graphics)
 	13	B	Dual-headed flag; 1 if dual-headed engine, 0 otherwise
 	14	B	Cargo capacity
