@@ -2,7 +2,7 @@ How to define new graphics
 ==========================
 
 The new graphics are controlled by newgrf.cfg (newgrfw.cfg for Windows),
-which is simply a list of .grf files to include.  Each .grf file can 
+which is simply a list of .grf files to include.  Each .grf file can
 then define graphics for one or more vehicles.
 
 In this document, you can find out how to define new sprites and
@@ -58,12 +58,14 @@ example pseudo-sprite above means to TTDPatch:
 
 Each pseudo-sprite that is read by TTDPatch has the following format:
 
-<sprite-num> *   <length>  <action> <data>
+<sprite-num> *   <length> <data>
 
 	sprite-num	The consecutive number of the sprite (see above)
 	length		Total size of the pseudo-sprite, including the
 			action byte and all data bytes
-	action		Defines the action that this pseudo-sprite carries out
+	data		The first byte of this is the so-called "action"
+			that decides how this particular sprite is to be
+			interpreted, and what it does
 
 
 The following actions can be specified:
@@ -130,7 +132,7 @@ Action 0:	Define new vehicle properties.
 
 May appear anywhere in the .grf file.
 
-Data is <veh-type> <num-props> <num-info> <offset>
+Data is <00> <veh-type> <num-props> <num-info> <offset>
 then repeated numprops times: <property> <new-info>
 
 	B veh-type	0, 1, 2 or 3 for trains, road vehicles, ships or planes
@@ -267,7 +269,7 @@ action 0 entry.  For example, the following entry:
    0A	9E	BE	60	FF	94	B4	AF	6E	A0	D2	AA
    0F	96	82	5A	FF	BE	BE	B4	A5	A0	78	AA
    0B	45	52	49	6C	E0	55	4D	45	4A	52	4A
-   0C	03	03	00	00	00	0C	04	05	06	05	07
+   0C	03	03	00	00	00	0B	04	05	06	05	07
    0D	2C 01	C2 01	64 00	F4 01	64 00	18 01	68 01	BE 00	68 01	C2 01	68 01
    11	08 00 00 00
 	08 00 00 00
@@ -291,7 +293,7 @@ Action 1:	Define new vehicle sprite blocks.
 
 May appear anywhere in the .grf file.
 
-Data is <veh-type> <num-sprites> <num-dirs>
+Data is <01> <veh-type> <num-sprites> <num-dirs>
 
 	B veh-type	same as action 0
 	B num-sprites	number of sets of num-dirs sprites
@@ -311,7 +313,7 @@ Action 2:	Define cargo IDs or randomized/variational cargo ID lists
 May appear only *after* the sprite block (action 1) it corresponds
 to.  It always refers to the most recent sprite block.
 
-Data is <veh-type> <cargo-id> <num-loadtypes> <num-loadingtypes> <loadtypes...>
+Data is <02> <veh-type> <cargo-id> <num-loadtypes> <num-loadingtypes> <loadtypes...>
 
 	B veh-type	see action 0
 	B cargo-id	ID of this particular definition, must be unique
@@ -364,7 +366,7 @@ defined.
 
 For num-loadtypes 80:	list of randomized cargo IDs
 
-Data is <veh-type> <cargo-id> <80/83> <random-type> <nrand> <randbit> <cargo-IDs...>
+Data is <02> <veh-type> <cargo-id> <80/83> <random-type> <nrand> <randbit> <cargo-IDs...>
 
 	B veh-type	same as above
 	B cargo-id	same as above, can't share the same number with
@@ -413,7 +415,7 @@ Data is <veh-type> <cargo-id> <80/83> <random-type> <nrand> <randbit> <cargo-IDs
 
 For num-loadtypes 81/82: list of variational but deterministic cargo IDs
 
-Data is <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
+Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 		<nvar> <cid-definitions...> <default-cid>
 
 	Each cid-definition (except for the default-cid) is in the
@@ -487,7 +489,7 @@ Action 3:	Associate cargo IDs with vehicles
 May appear only *after* all corresponding cargo IDs have been
 defined by an action 2 entry in this .grf file.
 
-Data is <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-type> <cid>]... <def-cid>
+Data is <03> <veh-type> <n-vid> <veh-id>... <num-vcid> [<cargo-type> <cid>]... <def-cid>
 
 	B veh-type	see action 0
 	B n-vid		bits 0-6: how many vehicle IDs this definition applies to
@@ -527,7 +529,7 @@ Action 4:	Define new vehicle names or other texts.
 
 May appear anywhere in the .grf file.
 
-Data is <veh-type> <language-id> <num-veh> <offset> <data...>
+Data is <04> <veh-type> <language-id> <num-veh> <offset> <data...>
 
 	B veh-type	see action 0
 	B language-id	language ID with bit 7 cleared (see below)
@@ -558,7 +560,7 @@ In addition, if bit 7 of language-ID is set, you aren't changing a vehicle
 name, but (almost) any arbitrary text of TTD.  In that case, the data is
 interpreted slightly differently:
 
-Data is <veh-type> <language-id> <num-entries> <text-id> <data...>
+Data is <04> <veh-type> <language-id> <num-entries> <text-id> <data...>
 
 	B veh-type	see below
 	B language-id	language ID with bit 7 set
@@ -620,12 +622,11 @@ Action 5:	Define new non-vehicle sprite blocks.
 
 May appear anywhere in the .grf file.
 
-Data is <graphics-type> <num-sprites> <other data...>
+Data is <05> <graphics-type> <num-sprites> <other data...>
 
 	B graphics-type	What set of graphics the sprites define.
 	B num-sprites	How many sprites are in this set?
-	B other data	Graphics type specific data.
-			For all currently defined sets: number of sprites in set
+	V other data	Graphics type specific data.  Currently unused.
 
 Possible values for graphics-type:
 	4  Pre-signal graphics (48 sprites or 112 with semaphores)
@@ -638,7 +639,7 @@ Action 6:	Apply parameter to following pseudo-sprite or sprite.
 
 May appear anywhere in the .grf file.
 
-Data is <param-num> <param-size> <offset> ... <FF>
+Data is <06> <param-num> <param-size> <offset> ... <FF>
 
 	B param-num	Number of parameter to substitute (First = "zero")
 			Ignored if that parameter was not specified in newgrf.cfg
@@ -661,12 +662,12 @@ is ignored during the activation.  Therefore, to conditionally skip this
 action, you must use action 9 and not action 7.
 
 
-Action 7:	Skip next n sprites if condition is true.
-~~~~~~~~~
+Actions 7, 9:	Skip next n sprites if condition is true.
+~~~~~~~~~~~~~
 
 May appear anywhere in the .grf file.
 
-Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
+Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 
 	B param-num	See action 6
 			Additionally, the following values test in-game
@@ -677,8 +678,9 @@ Data is <param-num> <param-size> <condition-type> <value> <num-sprites>
 			85 * TTDPatch flags, only for bit tests, see below
 			     for a list of defined bit numbers
 			86 B road traffic side, bit 4 clear=left, set=right
-			87 B euro character width (0 or 1 if not installed)
-			88 B see if specified GRFID is active (only action 7, not 9)
+			87 B reserved
+			88 B see if specified GRFID is active (only action 7,
+			     not 9; and only valid for condition-types 6 or 7)
 
 			(all other values greater 80 are reserved)
 
@@ -735,6 +737,14 @@ Bit numbers for TTDPatch flags (param-num = 85):
 
 Notes:
 
+Both actions skip a number of sprites if the condition is true.  Action 7
+skips are performed always, but action 9 skips are disregarded during
+initialization.  This means it is only safe to use action 9 to skip an
+action 6 entry.  For all others, you must use action 7, or they will not be
+initialized properly.  This is especially true of action 3 (sprite IDs),
+which need to be resolved during initialization.  If you skip an action 3
+using action 9, the graphics will be incorrect.
+
 Take care that the number of sprites to skip does not end in the middle
 of a non-pseudo-sprite block, or TTDPatch will attempt to interpret these
 regular sprites as pseudo-sprites, and will most likely crash.  Also don't
@@ -770,7 +780,7 @@ Action 8:	Define GRF ID
 Must be the first pseudo-sprite of a .grf file except for one or more
 action 7 entries that may (and probably should) come before it.
 
-Data is <version> <grf-id> <description> <copyright>
+Data is <08> <version> <grf-id> <description> <copyright>
 
 	B version	newgrf version, currently 02
 	4*B grf-id	globally unique ID of this .grf file
@@ -832,12 +842,7 @@ version	with		TTDPatch version
 Action 9:	Skip next n sprites if condition is true.
 ~~~~~~~~~
 
-This action is the same as action 7, except that it isn't skipped during
-initialization.  This means it is only safe to use it to skip an action 6
-entry.  For all others, you must use action 7, or they will not be
-initialized properly.  This is especially true of action 3 (sprite IDs), 
-which need to be resolved during initialization.  If you skip an action 3
-using action 9, the graphics will be incorrect.
+(See actions 7, 9 above.)
 
 
 Action 0A:	Replace arbitrary TTD sprites
@@ -846,7 +851,7 @@ Action 0A:	Replace arbitrary TTD sprites
 Using this action, you can replace arbitrary sprites in trg1.grf with your
 own version.
 
-Data is <num-sets> <set1> [<set2> ...]
+Data is <0A> <num-sets> <set1> [<set2> ...]
 A set is <num-sprites> <first-sprite>
 
 	B num-sets	How many sets of sprites to replace.
