@@ -971,6 +971,8 @@ Station properties:
 		this variable is only valid for stations built in 2.0.1 alpha 26
 		or later
 
+	42	terrain type, 0=normal, 1=desert, 2=rainforest, 4=snow
+
 	80+x	x is the offset into the station structure minus 10h, see
 		struc station in ttdprot.ah, for example
 		00	number and length of train platforms
