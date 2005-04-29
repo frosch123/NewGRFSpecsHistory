@@ -87,6 +87,7 @@ The following actions can be specified:
 	D	Set parameters
 	E	Deactivate other .grf file
 	F	Define new town name styles
+	10	Define GOTO labels for action 7/9
 
 The format of the data of each action is different depending on the action,
 and is described below.
@@ -748,11 +749,12 @@ need to skip all action 0-s for a house ID to disable it; skipping the action
 
 			If your building isn't 1x1, set flags accordingly
 			for the north tile, then define the next 1 or 3
-			tiles (by setting their property 8) with flags set
-			to zero. There should be no property 8 setting between
-			the first tile and the additional tiles. For 2x2
-			buildings, the first additional tile is the east
-			one, the second is the west part and the third
+			tiles (by setting their property 8). The only bit
+			that can be set in the flags of additional tiles
+			is bit 5 (animation). There should be no property
+			8 setting between the first tile and the additional
+			tiles. For 2x2 buildings, the first additional tile
+			is the east one, the second is the west part and the third
 			is the south part. You probably want to set the
 			substitute for additional tiles to a TTD additional
 			tile whose flags are already zero.
@@ -958,6 +960,23 @@ to make it appear on the map.
 				cargo types, just zero out the high byte of the
 				extra properties.
 
+	0D		B	Land shape flags. Defines which slopes the tile can
+				be built on.
+				Bit	meaning
+				0	NW edge cannot be lowered
+				1	NE edge cannot be lowered
+				2	SW edge cannot be lowered
+				3	SE edge cannot be lowered
+				4	Can only be built on flat land
+
+				(industry tiles are never built on steep slopes)
+				PLEASE NOTE: Be careful when setting this variable.
+				If you fail to set it correctly, your industry may
+				end up building on a hillside, which is probably
+				not what you want. The easiest way is to set bit
+				4 for middle tiles, bit 0 for the tiles along the
+				SE edge, bit 1 for those along the SW edge and so on.
+
 For industries (feature A):
 ---------------------------
 
@@ -1067,6 +1086,19 @@ would be for the wrong climate.
 				that have the default value of 0000h,0000h ,so input cargo doesn't
 				affect output.
 
+	1F		W	The text ID of the industry name. This text will be attached to the
+				town name when TTD texts refer to the industry.
+
+	20		D	Prospecting success chance. This value is currently used only for
+				extractive and organic industries (see property B for details).
+				The higher this value is, the higher the chance that your industry
+				can be built on a random place after prospecting. 0 means constant
+				failure, while FFFFFFFFh means constant success.
+
+	21		B	Callback flags
+				Bit	meaning
+				0	Use callback 22 to decide whether the industry type is available
+
 Format of industry layout tables:
 
 	B numlayouts	The total number of layouts following
@@ -1126,6 +1158,9 @@ The following num-sets times num-ent sprites will be real sprites,
 not pseudo-sprites.  The first num-ent sprites will be sprite set 0, the
 next num-ent sprites will be sprite set 1, and so on up to sprite set
 number num-sets - 1.
+
+Since TTDPatch 2.0.1 alpha 49, num-ent is a so-called "extended byte",
+whereby you can specify a word value in the form "FF xx xx".
 
 
 Action 2:	Define graphics set IDs or randomized/variational set ID lists
@@ -1196,7 +1231,8 @@ Data is <02> <04> <cargo-id> <numlittlesets> <numlotssets> <sets...>
 			is only little cargo waiting
 	B numlotssets	same but for lots of cargo
 	W sets...	Number of sprite set in most recent action 1, for
-			each of the track types
+			each of the possible numlittlesets and numlotssets
+			values, i.e. in total numlittlesets+numlotssets entries
 
 Like for vehicles, this decides the graphics set to use depending on the
 amount of cargo waiting.  There are two caveats, though.  Firstly, a station
@@ -1364,8 +1400,9 @@ Data is <02> <veh-type> <set-id> <80/83> <random-triggers> <randbit> <nrand> <se
 			cargo ID list
 			80 means the triggers refer to the vehicle/station itself
 			83 means the triggers refer to the engine of the
-			   consist of this vehicle (for vehicles), or the
-			   corresponding city for stations
+			   consist of this vehicle (for vehicles), the
+			   corresponding city for stations, or the corresponding
+			   industry for an industry tile
 	B random-triggers
 			a bitmask of triggers that cause the sprite to change
 			the meaning is feature-specific, see below
@@ -1440,8 +1477,20 @@ Random triggers for industry tiles:
 	01	the building tile is processed in the periodic tile
 		processing loop
 
+	02	triggers simultaneously for all tiles of the industry
+		every 256 ticks. If the industry is a primary one,
+		output cargo is generated at the same time.
+
+	04	cargo is delivered to the industry. If the industry is
+		a processing one, output cargo is generated at the same time.
+
 	Trigger 1 works similarly to trigger 1 for houses except that you
 	cannot multiply the timeout: it's always 256 ticks
+
+	Please also note that industries have 8 random bits per tile,
+	plus 16 random bits that are independent from the individual
+	tiles. You can check the tile-specific bits via id 80 and the
+	industry-specific ones via id 83.
 
 When displaying vehicles in the purchase list, the game will always
 show the first cargo-ID listed, not a random one.
@@ -1492,6 +1541,9 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 			   when not in a callback
 			10 articulated engine build stage, station sprite set type
 			11 current rail tool type (for station callbacks)
+			18 various extra information according to the current callback
+			   If not in callback, and for callbacks where its value isn't
+			   explicitly said, it contains an undefined value
 			40+x and
 			80+x feature-specific property, see below
 	V varadjust	adjust variable to a more useful range; either
@@ -1671,6 +1723,21 @@ will be played on the house tile.
 				this for example to remove a historical building, since those
 				cannot be normally removed by towns.
 
+	22	industries	Called when TTDPatch needs to know if a given industry type
+				is available. Return zero to make your type available, or any
+				nonzero value to disable it. This callback is intended for limiting your
+				type as a whole, so you can't access any industry-specific
+				variables, just the global ones. A good example for the use
+				of this callback is a nuclear power plant that isn't allowed
+				to appear before 1970. During this callback, variable 18 can
+				contain the following values:
+				0 - TTD is generating a map and needs to know if your type can appear
+				1 - TTD decided to build a new random industry during regular gameplay
+				    and needs to know if it can choose your type
+				2 - The user tries to build/prospect for your industry via the new
+				    industry window. TTD needs to know if the player is allowed to
+				    do this.
+
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
 are computed on-the-fly, and aren't actually stored anywhere in memory.
@@ -1776,6 +1843,13 @@ Town properties:
 			2 means largertowns is disabled, so no towns
 			  are allowed to grow larger
 
+	41	Returns the index of the town in the town array. This
+		value is between 0 and 69 (inclusive). You can use this
+		value to treat some towns specially. (For example, the
+		first town on the map can be considered the capitol and
+		you can allow a Parliament to be built there, but nowhere
+		else)
+
 	80+x    x is the offset into the town structure, see struc town
 		in ttdprot.ah, for example
 		02	population
@@ -1864,6 +1938,27 @@ Industry tile properties:
 		(which is not necessarily the founder town of the industry).
 		Zero if the tile isn't in a town. This is mostly useful
 		for banks and other urban industries.
+	43	Position of the tile relative to the northernmost tile of
+		the industry. The exact format is 00yxYYXX, where y is
+		the y offset from the northernmost tile, YY is the same,
+		but stored in a byte instead of a nibble, x and XX are
+		similar, but contain the x offset. Because of the fact
+		that y and x are nibbles, they may contain incorrect
+		values if your industry exceeds 16 tiles in either
+		direction. This variable can be used to spare industry tile
+		IDs: the same tile type can choose different representation
+		depending on where exactly it is inside the industry.
+
+	80+x	None defined, and none ever will because industry tiles
+		don't have an internal structure. Trying to access these
+		variables crashes TTD.
+
+Industry properties:
+
+	40+x	None defined yet
+
+	80+x	x is the offset into the industry structure, see
+		struc industry in ttdprot.ah.
 
 Please note that, unlike random graphics, changes of deterministic
 building graphics don't automatically redraw the building (except when
@@ -1969,8 +2064,11 @@ IDs	numsprites	Description
 03	01 (1)		Icons
 04	04 (4)		Flat docks
 
-Note that canals,town buildings and industry tiles do not have any cargo,
-so you must use num-cid=00 and only specify the default action 2 ID.
+Note that canals, town buildings, industry tiles and industries do not have
+any cargo, so you must use num-cid=00 and only specify the default action 2 ID.
+Additionally, industries don't have stand-alone graphics (they consist of
+individual tiles), so their action 2 chains are used for callbacks only.
+Therefore, your decision chains cannot end in a non-callback ID.
 
 Action 4:	Define new vehicle names or other texts.
 ~~~~~~~~~
@@ -2071,6 +2169,9 @@ Special TTDPatch text IDs:
 		Don't forget to set the same text for all parts of a multi-tile
 		building.
 	D0xx	Set miscellaneous grf texts
+	DCxx	Set miscellaneous persistent GRF texts. Unlike "normal" GRF texts,
+		these IDs can be used to set properties. The text ID must be set
+		before any action 0 references it.
 
 
 Action 5:	Define new non-vehicle sprite blocks.
@@ -2094,6 +2195,9 @@ Possible values for graphics-type:
 Action 5 entries in a .grf file which has a regular GRF ID (not FFFFFFFF)
 will always override those from .grf files with a GRF ID of FFFFFFFF (starting
 from 2.0.1 alpha 19).
+
+Since TTDPatch 2.0.1 alpha 49, num-sprites is a so-called "extended byte",
+whereby you can specify a word value in the form "FF xx xx".
 
 
 Action 6:	Apply parameter to following pseudo-sprite or sprite.
@@ -2129,7 +2233,7 @@ Actions 7, 9:	Skip next n sprites if condition is true.
 
 May appear anywhere in the .grf file.
 
-Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
+Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites/label>
 
 	B param-num	See action 6.  The Action 7 is ignored if the parameter
 			was not defined at all.
@@ -2180,6 +2284,11 @@ Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 			D if they are. This way, the variables will be set to the maximal value needed,
 			not just the value needed for the last grf in the list.
 
+			97 D Height of the snow line, in height units ( one terrain level equals to
+			     8 height units). Although it's a dword, only the lowest byte is used.
+			     Defaults to 38h on arctic and FFh on temperate ( only active if the
+			     tempsnowline switch is turned on)
+
 			(all other values greater 80 are reserved)
 
 	B param-size	See action 6 (ignored for bit tests, must be 4 for GRFID tests)
@@ -2198,8 +2307,16 @@ Data is <07/09> <param-num> <param-size> <condition-type> <value> <num-sprites>
 	V value		Bit number (a byte), or value to compare with
 			If a value is not a bit number, it has as many bytes
 			as the param-size specifies.
-	B num-sprites	How many sprites to skip if the condition is true
+	B num-sprites/label
+			How many sprites to skip if the condition is true
 			Special value 00 means skip rest of this grf file
+			If this value has been defined as a label using
+			action 10, processing of the grf file will resume
+			with the sprite after the label, instead of skipping
+			this many sprites.  This is useful for skipping more
+			than 255 sprites at a time, or to do away with
+			having to modify all action 7 entries after inserting
+			sprites somewhere.
 
 Bit numbers for TTDPatch flags (param-num = 85):
 	Bit	Switch (bit set = switch on)
@@ -2539,7 +2656,7 @@ cannot be found, a value of 0 is used for the parameter value instead.
 
 The target operand can also refer to the special variables from action 7,
 but at the moment the only variables that is valid to write are 8E,8F and
-93-96.
+93-97.
 
 Because the patch has to reallocate memory for the whole parameter list
 whenever a new parameter is added, you should set the parameter with the
@@ -2683,6 +2800,18 @@ If your GRF isn't available while its name style definition is used in a savegam
 reverts back to German, but the towns get both English and German names; they appear in the wrong order
 in the town list and duplicate town names may appear. However, no data loss occurs, so the correct
 names are restored as soon as your definition becomes available again.
+
+
+Action 10:	Define new town name styles
+~~~~~~~~~~
+
+This action defines labels to be used as jump destinations for action 7/9.
+
+Data is <10> <label> [<comment...>]
+
+The label can have values from E0..FF, other values are not valid.
+See action 7/9 for more details.
+
 
 4)  General information and hints and tips
 ------------------------------------------
