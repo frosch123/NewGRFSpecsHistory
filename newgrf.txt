@@ -1738,6 +1738,23 @@ will be played on the house tile.
 				    industry window. TTD needs to know if the player is allowed to
 				    do this.
 
+	23	vehicles (only trains atm)
+				Returns D0xx text to display under the vehicle
+				stats in the purchase screen.
+
+	24	stations	After applying the values from station prop. 0E, this callback 
+				is used to further customize the tile layout.  It's called once
+				for every tile that is being built, and returns the new tile 
+				type to build in its place or to leave the tile as defined by 
+				prop. 0E or TTD's default if the callback fails. The only 
+				possible return values are 00, 02, 04 and 06. Their meaning 
+				is the same as in prop. 0E.  Since the station hasn't yet been 
+				built, variables 40+x and 80+x are not available, instead 
+				variable 10 (extra callback info 1) contains the same 
+				information as variable 41 would contain.  This callback is 
+				used always and does not need setting a bit in the action 0 
+				property to activate it.
+
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
 are computed on-the-fly, and aren't actually stored anywhere in memory.
@@ -1827,6 +1844,16 @@ Station properties:
 		if PBS is off, bit 0 is clear and bit 1 is set to allow an
 		easy non-PBS fallback mechanism
 		all other bits reserved and must be masked out
+
+	45	rail continuation info; contains 16 bits of information whether
+		there is track in adjacent tiles, the first 8 bits give info
+		about track on the +L,-L,+P,-P,+L+P,-L+P,+L-P,-L+P tiles, where
+		L=length, P=platforms. The next 8 bits are set if the track
+		is accessible from the station tile (for the first four bits), or
+		one of the two adjacent tiles (for the remaining bits).
+
+	46,47	like 40,41 but counted from the center of the station, i.e.
+		values C, c, P and p are in the range -8 to +7
 
 	80+x	x is the offset into the station structure minus 10h, see
 		struc station in ttdprot.ah, for example
@@ -2212,7 +2239,9 @@ Data is <06> <param-num> <param-size> <offset> ... <FF>
 	B param-size	How many bytes to replace.  If larger than 4, the
 			bytes of the following parameter are used.  In that
 			case, nothing is applied unless *all* parameters
-			were specified.
+			were specified. If bit 7 is set, the value of the
+			parameter is *added*, instead of simply stored in
+			the destination location.
 	B offset	Offset into data from beginning of next sprite
 			to place where parameter is to be stored
 
@@ -2223,9 +2252,12 @@ as necessary, for any kind of values.  The final byte must be
 a literal "FF" to indicate the end of the list, as TTDPatch cannot
 easily determine the length of a pseudo-sprite.
 
-This action is processed only in the initialization of a .grf file and
-is ignored during the activation.  Therefore, to conditionally skip this
-action, you must use action 9 and not action 7.
+Since 2.0.1 alpha 51, the offset is an extended byte and may specify
+word values in the form FF xx xx, where xx xx is the little-endian form
+of the word value.
+
+Also since 2.0.1 alpha 51, this action is process both during initialization
+and activation, and may thus be skipped with either action 7 or 9.
 
 
 Actions 7, 9:	Skip next n sprites if condition is true.
@@ -2415,7 +2447,7 @@ Action to skip	with 7	with 9
 3 (veh ID map)	yes	no
 4 (veh names)	yes	no
 5 (sprite blk)	yes	yes
-6 (apply param)	no	yes
+6 (apply param)	yes	yes
 7 (skip sprite)	yes	yes
 8 (GRF ID)	yes	yes
 9 (skip sprite)	yes[*]	yes	[*] not during initialization, of course
@@ -2653,6 +2685,9 @@ Only in 2.0.1 alpha 16 or higher: you can access the parameters of another
 GRF file by using source2=FE, source1=the other GRF's parameter number and
 data=GRF ID.  This is only valid with operation 00 (set).  If the GRF ID
 cannot be found, a value of 0 is used for the parameter value instead.
+Furthermore, you may read the patch configuration variables, as well as
+allocate GRF resources.  For more details please see
+http://wiki.ttdpatch.net/tiki-index.php?page=ActionDSpecialVariables
 
 The target operand can also refer to the special variables from action 7,
 but at the moment the only variables that is valid to write are 8E,8F and
