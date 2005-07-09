@@ -1667,22 +1667,22 @@ Data is <02> <veh-type> <cargo-id> <8x> (<variable> <shift-num> <AND-mask> [oper
 			80+x feature-specific property, see below
 	V varadjust	adjust variable to a more useful range; either
 			B shift-num	number of bits to right-shift the
-					variable by (must be less than 32)
-			B/w/D AND-mask		bit-mask to AND the value of the
-					variable with after bit shifting
-					use FF to leave all bits as they are
+						variable by (must be less than 32)
+			B/W/D AND-mask		bit-mask to AND the value of the
+						variable with after bit shifting
+						use FF to leave all bits as they are
 			or
 			B shift-num+40	as above but add 40h
 			B/W/D AND-mask		as above
 			B/W/D add-val		signed number to add to the variable before
-			B/W/D divide-val	dividing by this number less than 32
-					and returning the division result
+			B/W/D divide-val	dividing by this number and returning
+						the division result
 			or
 			B shift-num+80	as above but add 80h
 			B/W/D AND-mask		as above
 			B/W/D add-val		signed number to add to the variable before
-			B/W/D modulus-val	dividing by this number less than 32
-					and returning the modulus (remainder)
+			B/W/D modulus-val	dividing by this number and returning
+						the modulus (remainder)
 			Note that for the add and divide operations, both the
 			variable and the divisor are taken to be signed numbers,
 			you may need to mask out the most significant bit to do
