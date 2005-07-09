@@ -949,8 +949,7 @@ to make it appear on the map.
 				old type just like it does with houses.
 
 	09		B	Industry tile override. Works like the house override
-				property for houses. Currently this property is the
-				only way to make the tile appear in the game.
+				property for houses.
 
 	0A,0B,0C	W	Tile acceptance. These three words define what cargoes
 				the tile accepts, and how much of them. The low byte
@@ -976,6 +975,36 @@ to make it appear on the map.
 				not what you want. The easiest way is to set bit
 				4 for middle tiles, bit 0 for the tiles along the
 				SE edge, bit 1 for those along the SW edge and so on.
+
+	0e		B	Callback flags
+				Bit	meaning
+				0	use callback 26 to decide the next animation frame
+				1	use callback 27 to decide animation speed
+
+	0f		W	The low byte specifies the number of animation frames minus one,
+				so 00 means 1 frame, 01 means 2 frames etc. The maximum number
+				of frames is 256, although you can have some problems if your
+				animation exceeds FD (253) frames. The high byte must be 0 for
+				non-looping animations and 01 for looping animations. Every
+				other value is reserved for future use.
+				In addition, if the whole word contains FFFF, animation is
+				turned off for this tile (this is the default value).
+
+	10		B	Default speed of animation. The meaning is the same as for
+				house property 1B, but the lower limit is 0 instead of 2,
+				so the fastest possible animation changes frames every
+				game tick (27ms). The default value is 2.
+
+	11		B	Triggers for callback 25 (triggered animation)
+				Bit	meaning
+				0	Call callback 25 when the construction state changes
+				1	Call callback 25 when the tile is processed in the
+					periodic processing loop
+				2	Call callback 25 when the industry of the tile is
+					processed in the periodic processing loop
+					(that is, all tiles receive the trigger at the same time)
+				3	The industry of the tile receives input cargo from
+					a station
 
 For industries (feature A):
 ---------------------------
@@ -1068,6 +1097,15 @@ would be for the wrong climate.
 				12	The industry can be exploded by a military helicopter
 					(factory)
 				13	The industry can cause a subsidence (coal mine)
+				14	During the production callback, incoming cargo (variables
+					40..42) is divided by industry.prodmultiplier, the
+					resulting instructions are multiplied by the same
+					amount before applying them. (No industry has this bit
+					set by default.) This allows industries to handle
+					different production multipliers automatically.
+					If you set this bit, please use small amounts in
+					your instructions, since industry.prodmultiplier is
+					16 for default production, and can get as high as 128.
 	1B		W	The text ID of the text to be displayed when the industry is
 				generated during the game. By default, all industries have
 				"New xxx is being constructed near yyy", except forests, that
@@ -1098,6 +1136,14 @@ would be for the wrong climate.
 	21		B	Callback flags
 				Bit	meaning
 				0	Use callback 22 to decide whether the industry type is available
+				1	Call the production callback when input cargo arrives to the
+					industry
+				2	Call the production callback every 256 game ticks
+				(For more information about the production callback, check "action 2 for
+				 industries")
+				3	Use callback 28 to decide whether the industry can be built on a
+					given spot
+				4	Use callback 29 to control random production changes
 
 Format of industry layout tables:
 
@@ -1372,6 +1418,67 @@ Useful values for ground sprites (decimal):
 Please note that all the ground sprite becomes visible in "transparent
 buildings" mode, so you should draw parts that seem to be hidden as well.
 
+For industries (feature A):
+---------------------------
+
+Industries don't have graphics directly associated with them (they have graphics through their tiles),
+so they can't have a traditional action 2. However, they still can use action 2 for a special purpose:
+production callbacks. A production callback can define exactly how an industry is producing cargo, but
+this needs more than the 15 bits a normal callback can return.
+
+When an industry has bits 1 or 2 set in property 21, its production is changed. Instead of processing
+the incoming cargo instantly, it remembers how many units are waiting, and uses the production
+callback mechanism to decide how much cargo must be produced. TTDPatch starts at the cargo ID defined by
+action 3 with variable 0C set to zero (as if it would do with an object that has grapic data), but
+expects a special action 2 to be reached finally, with the following format:
+
+<02> <0A> <set-id> <version> <subtract-in-1> <subtract-in-2> <subtract-in-3> <add-out-1> <add-out-2> <again>
+
+	B 0A			Feature A=industries
+	B set-id		ID for this definition
+	B version		version of the production-callback format, currently must be 0
+	W subtract-in-1..3	Amounts to be subtracted from the incoming cargoes waiting to be
+				processed. If you specify more than the amount actually waiting,
+				the incoming amount will be zeroed instead.
+	W add-out-1/2		Amounts to be added to the produced cargoes (which will be distributed
+				to nearby stations later).
+	B again			If zero, the callback is finished. If it contains 01, the callback will
+				be called again after subtracting the given amounts from the incoming
+				cargo and adding to the outgoing cargo.
+
+(During the callback, the lowest byte of variable 18 contains the reason the callback is called:
+ 0 if it was called because of incoming cargo, 1 if it was called in the periodic processing.
+ Bits 8-23 contain how many times the callback was already called in this loop, i.e. 0 for the
+ first call, 1 for the second etc.)
+
+Reading variables 40..42 is necessary during the decision chain to decide how much cargo to produce.
+For example, this action 2:
+
+	02 0A 01 00 10 00 10 00 00 00 10 00 00 00 01
+
+will take 16 units from the first incoming cargo type, 16 units from the second one, then produce 16 units from
+the first outgoing cargo type. After this is finished, the callback is called again.
+
+On the other hand, this action 2:
+
+	02 0A 02 00 00 00 00 00 00 00 00 00 00 00 00
+
+will produce nothing and stop the callback mechanism.
+
+If we add two more variational action 2s:
+
+	02 0A 03 81 41 00 ff 01 02 00 00 0F 01 00
+	02 0A 04 81 40 00 ff 01 02 00 00 0F 03 00
+
+we can achieve an industry that needs two different cargoes to produce its first output cargo.
+The second variational cargo ID cancels the callback by selecting ID 2 if there isn't at least
+16 units of incoming cargo from type 1, selecting the first variational cargo ID otherwise.
+The first cargo ID works similarly: if there isn't at least 16 units from the second incoming
+cargo type, it cancels the callback. If, however, the amount is enough, it selects ID 1 to
+produce 16 units of output cargo and restart the whole process. The result is an industry that
+only works when there are at least 16 units from both cargo types. The real-world example
+would be a steel mill that needs both coal and iron ore to produce steel.
+
 
 Randomized and variational cargo ID lists:
 ------------------------------------------
@@ -1513,7 +1620,7 @@ conditions are met.
 For types 81/82: list of variational but deterministic cargo IDs
 ----------------------------------------------------------------
 
-Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
+Data is <02> <veh-type> <cargo-id> <8x> (<variable> <shift-num> <AND-mask> [operator])...
 		<nvar> <cid-definitions...> <default-cid>
 
 	Each cid-definition (except for the default-cid) is in the
@@ -1522,26 +1629,38 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 	B veh-type	same as above
 	B cargo-id	same as above, can't share the same number with
 			another cargo ID
-	B 81/82		literal 81 or 82 (hex) to indicate a variational
+	B 8x		literal 81,82,85,86,89 or 8a (hex) to indicate a variational
 			cargo ID list
-			81 means the following variable refers to the
+			81/85/89 means the following variable refers to the
 			   vehicle/station itself
-			82 means the following variable refers to the engine
+			82/86/8a means the following variable refers to the engine
 			   of the consist of this vehicle (for vehicles)
 			   or the corresponding city (for stations and houses)
 			   (undefined for canals)
+
+			This number also tells what size the checked variable is.
+			For 81/82, the lowest byte of the value is accessed, for
+			85/86, the lowest word is accessed, while for 89/8a, the
+			lowest doubleword is accessed. (If the accessed variable is
+			smaller than the size given here, the extra bits may contain
+			junk)
+
+			For the following fields, B/W/D means the field is byte-sized
+			for types 81 and 82, word-sized for types 85 and 86, and
+			doubleword-sized fot types 89 and 8a.
+
 	B variable	what variable determines the cargo ID to choose
-			00 current date (counted as days from 1920)
-			01 current year (count from 1920, max. 2175 even with eternalgame)
-			02 current month
-			03 current climate, 0=temp, 1=arctic, 2=trop, 3=toyland
-			09 date fraction, a word value, incremented by 0x375 every engine tick
-			0A animation counter, a word value, incremented every tick
-			0C current callback ID (feature-specific), set to 00
+			00 W current date (counted as days from 1920)
+			01 B current year (count from 1920, max. 2175 even with eternalgame)
+			02 B current month
+			03 B current climate, 0=temp, 1=arctic, 2=trop, 3=toyland
+			09 W date fraction, a word value, incremented by 0x375 every engine tick
+			0A W animation counter, a word value, incremented every tick
+			0C B current callback ID (feature-specific), set to 00
 			   when not in a callback
-			10 articulated engine build stage, station sprite set type
-			11 current rail tool type (for station callbacks)
-			18 various extra information according to the current callback
+			10 D articulated engine build stage, station sprite set type
+			11 B current rail tool type (for station callbacks)
+			18 D various extra information according to the current callback
 			   If not in callback, and for callbacks where its value isn't
 			   explicitly said, it contains an undefined value
 			40+x and
@@ -1549,29 +1668,60 @@ Data is <02> <veh-type> <cargo-id> <81/82> <variable> <shift-num> <AND-mask>
 	V varadjust	adjust variable to a more useful range; either
 			B shift-num	number of bits to right-shift the
 					variable by (must be less than 32)
-			B AND-mask	bit-mask to AND the value of the
+			B/w/D AND-mask		bit-mask to AND the value of the
 					variable with after bit shifting
 					use FF to leave all bits as they are
 			or
 			B shift-num+40	as above but add 40h
-			B AND-mask	as above
-			B add-val	signed number to add to the variable before
-			B divide-val	dividing by this number less than 32
+			B/W/D AND-mask		as above
+			B/W/D add-val		signed number to add to the variable before
+			B/W/D divide-val	dividing by this number less than 32
 					and returning the division result
 			or
 			B shift-num+80	as above but add 80h
-			B AND-mask	as above
-			B add-val	signed number to add to the variable before
-			B modulus-val	dividing by this number less than 32
+			B/W/D AND-mask		as above
+			B/W/D add-val		signed number to add to the variable before
+			B/W/D modulus-val	dividing by this number less than 32
 					and returning the modulus (remainder)
 			Note that for the add and divide operations, both the
 			variable and the divisor are taken to be signed numbers,
-			you may need to mask out bit 7 to do an unsigned division
+			you may need to mask out the most significant bit to do
+			an unsigned division
+			If bit 5 of shift-num is set, the result is taking part of
+			further operations instead of being used as-is. In this case,
+			varadjust is followed by an operator byte, then a new
+			variable/varadjust pair. If the new shift-num has bit 5
+			set as well, it is followed by yet another operator/variable/
+			varadjust until a shift-num has bit 5 clear.
+	B operator	This field exists only if the previous shift-num had bit 5
+			set. Can have the following values:
+
+			Value	Effect
+			00	result = val1+val2
+			01	result = val1-val2
+			02	result = min( val1, val2 )
+				(val1 and val2 are both considered signed)
+			03	result = max( val1, val2 )
+				(val1 and val2 are both considered signed)
+			04,05	Same as 02/03, but operands are considered unsigned
+			06	result = val1 / val2
+				(val1 and val2 are both considered signed)
+			07	result = val1 mod val2
+				(val1 and val2 are both considered signed)
+			08,09	Same as 06/07, but operands are considered unsigned
+
+			where val1 is the value resulting from the current variable/
+			varadjust pair (or the result of the previous calculations if
+			this isn't the first pair) and val2 is the value resulting from
+			the following variable/varadjust pair.
+			By using bit 5 of shift-num repeatedly, you can combine several
+			variables together before making your decision.
+
 	B nvar		how many different ranges of values there are
 
 	W cargo-ID	cargo-ID to use for this range of values
-	B low-range	lower bound of the range of values (inclusive)
-	B high-range	upper bound of the range of values (inclusive)
+	B/W/D low-range		lower bound of the range of values (inclusive)
+	B/W/D high-range	upper bound of the range of values (inclusive)
 
 	W default-cid	default cargo ID to use if none of the ranges
 			below matches; must be specified even if the ranges
@@ -1755,9 +1905,90 @@ will be played on the house tile.
 				used always and does not need setting a bit in the action 0 
 				property to activate it.
 
+	25	industry tiles	Similar to callback 1B for houses, can return the same special
+				values as well. The only difference is that industries can have
+				more animation frames than houses, so everything is a valid
+				frame number between 00 and FC.
+
+	26	industry tiles	Similar to callback 1A for houses, can return the same special
+				values.
+
+	27	industry tiles	Similar to callback 20 for houses, with the same limitations.
+
+	28	industries	Called to decide if the industry can be built on a given spot.
+				Since the industry isn't built yet, you can only use a small
+				subset of the data: you can access the data of the nearest
+				town via action 2/type 82 without any problems, but
+				action 2/type 81 will access different variables than normallly:
+
+				Variable number	Type	Meaning
+				80		W	Coordinates of the selected position
+				86		B	Number of the selected layout, according
+							to property 0A
+				87		B	Ground type of the selected spot (see
+							canal variable 81 for details)
+				88		B	Town zone of the selected spot (see town
+							variable 42 for details)
+				89		W	Distance between the closest town and
+							the selected position.
+							(This is Manhattan distance, not Eucledian
+							 distance, ie. it's |x-x0|+|y-y0| instead of
+							 sqrt((x-x0)^2+(y-y0)^2) )
+				8a		B	Height of the lowest corner of the tile
+							(between 00h and 80h, one land height unit
+							 equals to 8 units)
+
+				8b		W	If property 1A bit 2 is clear (the industry
+							must be built on dry land), this is the
+							Manhattan-distance of the closest water
+							tile (coasts and bridges over water aren't
+							considered water tiles here).
+							If property 1A bit 2 is set (the industry
+							must be built on water), this is the
+							Manhattan-distance of the closest empty
+							dry land tile (coasts aren't considered
+							dry land).
+							In the first case, this variable will be
+							always below 80h, since the edges of the
+							map are guaranteed to be filled with water.
+							In the second case, however, there is no
+							such guarantee, and you must check the
+							high byte as well. In the extreme case of
+							no dry land tiles on the map, this
+							variable will be set to its maximum, 200h.
+
+				You cannot use any of the 40+x industry variables.
+
+				The callback must return a 15-bit value, which is interpreted in
+				the following way:
+
+				Returned value		Meaning
+				0000-03ff		Industry can't be built, display the misc.
+							GRF text Dxxx as error message
+				0400			Industry can be built
+				0401-			Industry can't be built, display the
+							default "site unsuitable" error message.
+
+	29	industries	Called when TTD chooses the industry for a random production change.
+				Variable 18 contains 32 random bits to help randomizing the decision.
+				The callback must return one of the following results:
+
+				Returned value		Meaning
+				00			Do nothing
+				01			Halve industry production. If production reaches
+							the quarter of the default, the industry is closed
+							instead as if you returned 03
+				02			Double industry production if it hasn't reached
+							eight times of the original yet.
+				03			The industry abbounces imminent closure, and is
+							phisically removed from the map next month.
+				04			Do the standard random production change as if this
+							industry was a primary one.
+
 For all features, the 80+x variables are offsets into the corresponding
 structure in TTD's game data.  The 40+x variables are special variables that
 are computed on-the-fly, and aren't actually stored anywhere in memory.
+The 40+x variables are all doubleword-sized.
 
 Vehicle properties for the variable:
 	40	consist position and length
@@ -1975,6 +2206,9 @@ Industry tile properties:
 		direction. This variable can be used to spare industry tile
 		IDs: the same tile type can choose different representation
 		depending on where exactly it is inside the industry.
+	44	The current animation frame being displayed, similar to
+		house variable 46, but it can contain anything between
+		00 and FF.
 
 	80+x	None defined, and none ever will because industry tiles
 		don't have an internal structure. Trying to access these
@@ -1982,7 +2216,17 @@ Industry tile properties:
 
 Industry properties:
 
-	40+x	None defined yet
+	40..42	If bit 1 or 2 is set in property 21, these three variables
+		contain the amount of incoming cargo waiting to be
+		processed. (40 gives the amount of the first type waiting,
+		41 gives the same for the second type etc.) Their primary
+		purpose is to provide feedback during the production callback
+		mechanism, but can be used for other purposes as well.
+		(For example, a steel mill can display a big pile of coal
+		if the waiting coal exceeds a given amount)
+
+		Please note that the amount of incoming cargo is capped
+		to FFFF (65535).
 
 	80+x	x is the offset into the industry structure, see
 		struc industry in ttdprot.ah.
@@ -2000,27 +2244,14 @@ is redrawn every time property 46 changes. This means that you can
 use a variational action 2 to choose the current frame according to property
 46. Please note that this kind of animation needs more CPU time and more
 sprites, so you should prefer palette animation if possible.
+Industry tile animation works in the same manner.
 
 When displaying a vehicle in the purchase list, the game will show
 those variations based on external variables (dates etc.) correctly,
 but variations based on vehicle properties (speed, age etc.) will
-always show the first (not the default) cargo-ID.
-
-Since only byte-ranges are supported, you must use the shift-num to
-move the value into a useful range.  For example, the vehicle age
-is normally a two-byte value.  If you want to specify the age range
-15-20 years, the age would be 5479-7305 in days.  To get this to
-fit in a byte value, you have to shift it to the right by 5 bits,
-yielding 171-228, which introduces a slight rounding error of course.
-
-Then you specify the range 171 (AB) to 228 (E4), for example using this
-pseudo-sprite data (parenthesis for emphasis only):
-
-* 17	00 03 81 C0 05 FF 02 (00 00 00 AA) (01 00 AB E4) (02 00)
-
-This will use cargo ID 0 if the age is 0 to 5471 days, ID 1 if the
-age is from 5472 to 7328 days, and ID 2 otherwise.
-
+always show the first (not the default) cargo-ID. If you do a
+calculation, the first cargo-ID will be selected if any of the
+needed variables is inaccessible.
 
 Action 3:	Associate cargo IDs with vehicles
 ~~~~~~~~~
