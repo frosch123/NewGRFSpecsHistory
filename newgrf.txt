@@ -1071,7 +1071,9 @@ would be for the wrong climate.
 	18		B	The probability of the industry appearing on the map during
 				normal gameplay. Old types have this value between 0 and 10.
 	19		B	The color this industry type will appear in the map window
-				in the "Industries" mode.
+				in the "Industries" mode, according to the DOS palette.
+				Windows TTDPatch will automatically translate this to the
+				according Windows palette index.
 	1A		D	Special industry flags to define special behavior.
 				Bit	meaning
 				0	The industry periodically plants fields around itself
@@ -1177,6 +1179,109 @@ the first byte wasn't FEh
 
 The layout consists of a list of the above tile definitions, terminated by two bytes: 0,80h
 
+For cargo types (feature B)
+---------------------------
+
+The newcargos switch of TTDPatch allows modifying the existing 12 cargos per climate, and
+allows adding 20 new cargos per climate as well. These cargo slots are numbered from 0
+to 31, where slots 0-11 are used by default TTD cargos and slots 12-31 contain uninitialized
+garbage by default (so you can't trust them having meaningful information, you must set
+all of their properties). Some old cargos have special features (passengers show up in
+bus stations instead of lorry bays; passengers,mail,goods,water and food affect town
+growth). These features can't be transferred to the new slots, the only way you can
+have them is by replacing the data of the according old slot with your new data.
+(passengers - slot 0; mail - slot 2; goods/candy - slot 5; water - slot 9 (works specially
+ on tropic only); food/fizzy drinks - slot 11 (isn't special on temperate))
+
+	Properties for industries
+	number		size	property
+	08		B	Bit to use in cargo bit masks and in action 3. Setting
+				this property is necessary for the cargo to work correctly.
+				Values 1C-1F should be safe to use (if they aren't already
+				taken, of course) if you intend to maintain compatibility
+				with GRFs unaware of the newcargos switch. Further assuming
+				that no active GRFs support the toyland climate, you can
+				use values 11-1A as well.
+	09		W	TextID for the name of the cargo type (e.g. "Passengers",
+				"Coal","Water").
+	0A		W	Name of one unit from the cargo type. It's usually the
+				same as the name of the cargo type, but cargo 0 has it
+				as "Passenger", not "Passengers". This text is used in
+				subsidy news messages currently. ("First Passenger service..."
+				instead of "First Passengers service...", which would sound
+				awkward)
+	0B		W	TextID to be displayed if showing the amount of cargo,
+				and the amount is exactly one unit. Although the amount is
+				guaranteed to be 1, you still need to display it via
+				either the special character 7C (print signed word) or
+				87 (print signed word in liters). If you use the latter,
+				the suffix "liters" is added automatically. For example,
+				if you need a new cargo called "gold ore", this should
+				probably be "\7C ton of gold ore", which will expand to
+				"1 ton of gold ore". On the other hand, if you need a
+				new liquid cargo called "milk", this should be "\87 of
+				milk", which will expand to "100/1,000 liters of milk"
+				(the number depends on whether TTDPatch is instructed
+				to fix the TTD bug where 100 liters weigh 1 ton. If
+				it isn't, the number is multiplied by 100, if it is,
+				the multiplier is 1000)
+	0C		W	Same as above, but displayed if the amount of cargo
+				waiting isn't exactly one. Sticking with the example
+				above, you'd need "\7C tons of gold ore" and "\87 of milk",
+				respectively. For liquid cargos, this doesn't need to
+				differ from property 0B since you'll always need plural
+				there.
+	0D		W	TextID to be displayed in the station list window to
+				represent the cargo type. This should be two letters
+				that remind players to the full name, prefixed by the
+				special character 0E to switch to the microscopic font.
+				Since the microscopic font is used, capitalization isn't
+				important. For the above examples, "GO" and "MK" could
+				be good solutions (you can't have "ML" since it's already
+				taken by mail).
+	0E		W	Sprite number of the icon displayed in the station window
+				to represent 10 units of this cargo waiting. If it's
+				set to FFFF, the action 3 associated to the cargo is
+				used instead to find out the graphics. If this fails,
+				a generic cargo icon (crates of goods) is displayed.
+	0F		B	Weight of one unit of the cargo, where 10h means one ton.
+				In our examples, good ore must have this as 10h (since
+				"1 ton of gold ore" should really weigh 1 ton), while
+				milk probably has this above 10h (1000 liters of milk
+				weigh more than 1000 liters of water)
+	10,11		B	Two time penalties used in the income calculation,
+				see below. (The unit is 185 ticks, roughly 2.5 game days) 
+	12		D	Cargo price base cost used in the income calculation,
+				see below.
+	13		B	Color to represent the cargo in the station list window,
+				according to the DOS palette. Windows TTDPatch will
+				automatically translate this to the according Windows
+				palette index.
+	14		B	Same as above, but used in the "Cargo payment rates"
+				window.
+
+When a player transports a cargo to a station that accepts it, the amount of income
+depends on four factors:
+- The Manhattan distance between the source and destination station signs.
+- The amount of cargo moved
+- The price factor defined by property 12. This one is subject to inflation.
+- A time factor, calculated the following way:
+(t is the time needed for the delivery, T1 and T2 are the values of property 10 and 11,
+ respectively. The unit is 185 ticks, roughly 2.5 game days)
+	-If the delivery is faster than T1, it's 255
+	-If the delivery is slower than T1, but faster than T1+T2, then the factor is
+	 255-(t-T1)
+	-If the delivery is slower than T1+T2, the factor is 255-(t-T1)-(t-T1-T2)
+	-If the above rules would result in a factor lower than 31, 31 is used instead
+
+Knowing these factors, the final value of the income (in British pounds) is:
+
+((((distance/2) * timefactor * amount_moved) >> 7) * cargopricefactor) >> 13
+
+( ">> n" means shifting right by n bits )
+
+(Source: Marcin Grzegorczyk's "TTD savegame internals" document)
+
 Action 1:	Define new vehicle sprite blocks.
 ~~~~~~~~~
 
@@ -1199,6 +1304,7 @@ Data is <01> <feature> <num-sets> <num-ent>
 			For houses and industry tiles, this should be between 1 and 4.
 				Sprites after the first four are always ignored.
 				see action 2 and 3
+			For cargos, this must be 1
 
 The following num-sets times num-ent sprites will be real sprites,
 not pseudo-sprites.  The first num-ent sprites will be sprite set 0, the
@@ -1479,6 +1585,20 @@ produce 16 units of output cargo and restart the whole process. The result is an
 only works when there are at least 16 units from both cargo types. The real-world example
 would be a steel mill that needs both coal and iron ore to produce steel.
 
+For cargos (feature B):
+-----------------------
+
+Data is <02> <0B> <set-id> 01 00 <set>
+
+	B 05		feature B=cargos
+	B set-id	ID of this definition
+	B 01		literal 01
+	B 00		literal 00
+	W set		Number of sprite set in most recent action 1
+
+You will note that this is the same format as for vehicles, but specifying
+only a single action 1 set ID to use for the cargo icon.
+
 
 Randomized and variational cargo ID lists:
 ------------------------------------------
@@ -1599,6 +1719,9 @@ Random triggers for industry tiles:
 	tiles. You can check the tile-specific bits via id 80 and the
 	industry-specific ones via id 83.
 
+Cargos don't have random bits and therefore, they have no random triggers,
+either.
+
 When displaying vehicles in the purchase list, the game will always
 show the first cargo-ID listed, not a random one.
 
@@ -1663,6 +1786,11 @@ Data is <02> <veh-type> <cargo-id> <8x> (<variable> <shift-num> <AND-mask> [oper
 			18 D various extra information according to the current callback
 			   If not in callback, and for callbacks where its value isn't
 			   explicitly said, it contains an undefined value
+			1A D A dword always having the value of FFFFFFFF. This is 
+			   convenient to get arbitrary values for operations, since
+			   all you need is putting the wanted value in the and-mask
+			   field; ANDing it with this variable will always give back
+			   the and-mask unmodified.
 			40+x and
 			80+x feature-specific property, see below
 	V varadjust	adjust variable to a more useful range; either
@@ -1709,6 +1837,11 @@ Data is <02> <veh-type> <cargo-id> <8x> (<variable> <shift-num> <AND-mask> [oper
 			07	result = val1 mod val2
 				(val1 and val2 are both considered signed)
 			08,09	Same as 06/07, but operands are considered unsigned
+			0A	result = val1*val2
+				(the result is truncated to the length of the source operands)
+			0B	result = val1 & val2	(bitwise AND)
+			0C	result = val1 | val2	(bitwise OR)
+			0D	result = val1 ^ val2	(bitwise XOR)
 
 			where val1 is the value resulting from the current variable/
 			varadjust pair (or the result of the previous calculations if
@@ -2231,6 +2364,11 @@ Industry properties:
 	80+x	x is the offset into the industry structure, see
 		struc industry in ttdprot.ah.
 
+Cargo properties:
+
+	40+x	None defined at the moment
+	80+x	None defined at the moment
+
 Please note that, unlike random graphics, changes of deterministic
 building graphics don't automatically redraw the building (except when
 the construction state changes, which redraws the building), resulting
@@ -2327,6 +2465,10 @@ any cargo, so you must use num-cid=00 and only specify the default action 2 ID.
 Additionally, industries don't have stand-alone graphics (they consist of
 individual tiles), so their action 2 chains are used for callbacks only.
 Therefore, your decision chains cannot end in a non-callback ID.
+
+For cargos, num-cid must be zero. The chain of action 2s associated should
+lead to a cargo icon sprite that is not larger than 10x10 pixels and represents
+the cargo in question.
 
 Action 4:	Define new vehicle names or other texts.
 ~~~~~~~~~
@@ -2624,6 +2766,7 @@ Bit numbers for TTDPatch flags (param-num = 85):
 	57	newstartyear
 	58	freighttrains
 	59	newhouses
+	6B	newcargos
 
 Format of the TTDPatch version variable: MMmrbbbb
 	MM is the major version
@@ -3185,7 +3328,9 @@ Num2 is what you use as cargo type in action 0.
 Note that using a cargo type of FF in action 3 allows you to decide which
 cargo ID to show in the purchase list.
 
-
+Please note that these values may be redefined by cargo action 0s. Newcargos-aware
+GRFs should be careful to set the refit masks according to the current climate,
+avoiding setting bits for non-active cargos to allow reusing those.
 
 c) General strategy for implementing new graphics in the .grf file:
 
