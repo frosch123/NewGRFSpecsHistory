@@ -1,3 +1,17 @@
+======================================================================
+WARNING: This file is no longer being maintained.  The authoritative
+         specifications are now in the TTDPatch Wiki at the addresss
+         http://wiki.ttdpatch.net/tiki-index.php?page=NewGraphicsSpecs
+======================================================================
+
+The reason?  It is unmanagable to maintain the same information accurately
+in two places and always make sure that they match.  The wiki is far more
+flexible, and if you prefer an offline version, there's a zip file you can
+download (from the link above) that contains all relevant pages in HTML
+format.
+
+This file will be removed from the distribution soon.
+
 How to define new graphics
 ==========================
 
